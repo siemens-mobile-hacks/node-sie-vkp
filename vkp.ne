@@ -290,6 +290,15 @@ function extractExpr(d) {
 	let expr = d[1][0];
 	let before = d[0];
 	let after = d[2];
+
+	if (expr.type == "RECORD" && expr.new.length > 0) {
+		let lastTokenInData = expr.new[expr.new.length - 1];
+		if (lastTokenInData.type == "NUMBER") {
+			if (after && after[0].length > 0 && after[0][0] != null)
+				expr.value = new VkpParseError(`No space between number and comment`, { line: after[0][0].line, column: after[0][0].col });
+		}
+	}
+
 	expr.before = before ? before[0].filter((e) => e != null) : [];
 	expr.after = after ? after[0].filter((e) => e != null) : [];
 	return expr;

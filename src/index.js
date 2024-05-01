@@ -8,7 +8,10 @@ import { parseVKP } from './parseVKP.js';
 let patchText = iconv.decode(fs.readFileSync("../patches/patches/A50v12/2698-Many_links_on_different_keys.vkp"), 'windows1251');
 
 patchText = `
-AA:			BB			C
+AA: BB 0i22;aaa
+AA: BB 0n111;aaa
+AA: BB 0xFF;aaa
+AA: BB AB;aaa
 `;
 
 let vkp = parseVKP(patchText);

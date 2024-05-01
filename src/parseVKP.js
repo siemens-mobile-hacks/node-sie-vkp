@@ -87,23 +87,25 @@ function parseVKP(text, options) {
 			}
 		} else if (n.type == "RECORD") {
 			let loc = { line: n.address.line, column: n.address.col };
+			let oldDataloc = n.old.length ? { line: n.old[0].line, column: n.old[0].col } : loc;
+			let newDataloc = n.new.length ? { line: n.new[0].line, column: n.new[0].col } : loc;
 
 			// Check for errors
-			let errors = 0;
+			let fatalErrors = 0;
 			let isPlaceholder = false;
 
 			for (let d of [n.old, n.new]) {
 				for (let w of d) {
 					if ((w.value instanceof Error)) {
 						vkp.errors.push(w.value);
-						errors++;
+						fatalErrors++;
 					} else if (w.type == "PLACEHOLDER") {
 						isPlaceholder = true;
 					}
 				}
 			}
 
-			if (errors)
+			if (fatalErrors)
 				break;
 
 			let oldData = Buffer.concat(n.old.map((d) => d.value));
@@ -112,7 +114,7 @@ function parseVKP(text, options) {
 			if (isPlaceholder) {
 				newData = null;
 				if (!options.allowPlaceholders)
-					vkp.warnings.push(new VkpParseError(`Found placeholder instead of real patch data`, loc));
+					vkp.errors.push(new VkpParseError(`Found placeholder instead of real patch data`, newDataloc));
 			} else {
 				newData = Buffer.concat(n.new.map((d) => d.value));
 
@@ -122,13 +124,13 @@ function parseVKP(text, options) {
 				}
 
 				if (oldData.length > 0 && oldData.length < newData.length) {
-					vkp.errors.push(new VkpParseError(`Old data (${oldData.length} bytes) is less then new data (${newData.length} bytes).`, loc));
+					vkp.errors.push(new VkpParseError(`Old data (${oldData.length} bytes) is less than new data (${newData.length} bytes).`, oldDataloc));
 					break;
 				}
 
 				if (pragmas.warn_no_old_on_apply && !oldData.length) {
 					if (!options.allowEmptyOldData)
-						vkp.warnings.push(new VkpParseError(`Old data is not specified, undo operation is impossible`, loc));
+						vkp.warnings.push(new VkpParseError(`Old data is not specified, undo operation is impossible`, newDataloc));
 					vkp.needRecovery = true;
 				}
 			}
@@ -157,8 +159,6 @@ function parseVKP(text, options) {
 
 	if (offsetCorrector != 0)
 		vkp.warnings.push(new VkpParseError(`Uncanceled offset ${offsetCorrectorNode.text}`, offsetCorrectorLoc));
-
-	// console.dir(vkp, { depth: null });
 
 	return vkp;
 }
