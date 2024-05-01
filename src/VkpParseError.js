@@ -21,9 +21,9 @@ export function codeFrame(text, lineNum, colNum) {
 			n++;
 			continue;
 		}
-		out += `${n == lineNum ? '>' : ' '}${n.toString().padStart(maxLineNumLen, ' ')} | ${line}\n`;
+		out += `${n == lineNum ? '>' : ' '}${n.toString().padStart(maxLineNumLen, ' ')} | ${tab2spaces(line)}\n`;
 		if (n == lineNum) {
-			out += ` ${" ".repeat(maxLineNumLen, ' ')} | ${" ".repeat(colNum - 1)}^\n`;
+			out += ` ${" ".repeat(maxLineNumLen, ' ')} | ${str2spaces(line.substr(0, colNum - 1))}^\n`;
 		}
 		n++;
 	}
@@ -43,4 +43,25 @@ export function getLocByOffset(text, offset) {
 			return { line, column };
 	}
 	return { line, column: 1 };
+}
+
+function str2spaces(line) {
+	return tab2spaces(line).replace(/./g, ' ');
+}
+
+function tab2spaces(line) {
+	let newStr = "";
+	let virtualSymbols = 0;
+	for (let i = 0; i < line.length; i++) {
+		let c = line.charAt(i);
+		if (c == "\t") {
+			let spacesCnt = 4 - virtualSymbols % 4;
+			newStr += " ".repeat(spacesCnt);
+			virtualSymbols += spacesCnt;
+		} else {
+			virtualSymbols++;
+			newStr += c;
+		}
+	}
+	return newStr;
 }
