@@ -1,5 +1,6 @@
 import nearley from 'nearley';
 import grammar from './grammar.js';
+import iconv from 'iconv-lite';
 import { VkpParseError, getLocByOffset } from './VkpParseError.js';
 
 const DEFAULT_PRAGMAS = {
@@ -14,10 +15,12 @@ function parseVKP(text, options) {
 	options = {
 		allowEmptyOldData:	false,
 		allowPlaceholders:	false,
+		ast:				false,
 		...options
 	};
 
 	let vkp = {
+		ast: null,
 		valid: false,
 		writes: [],
 		warnings: [],
@@ -37,12 +40,19 @@ function parseVKP(text, options) {
 		} else if ((m = e.message.match(/at line (\d+) col (\d+)/))) {
 			loc = { line: +m[1], column: +m[2] };
 		}
+
+		if (options.ast)
+			vkp.ast = parser.results && parser.results.length ? parser.results[0] : [];
+
 		vkp.errors.push(new VkpParseError(`Invalid syntax`, loc));
 		return vkp;
 	}
 
+	if (options.ast)
+		vkp.ast = parser.results && parser.results.length ? parser.results[0] : [];
+
 	if (parser.results.length != 1) {
-		vkp.errors.push(new VkpParseError(`Invalid parser results!`, { line: 1, column: 1 }));
+		vkp.errors.push(new VkpParseError(`Invalid parser results! Internal error!`, { line: 1, column: 1 }));
 		return vkp;
 	}
 
@@ -174,4 +184,12 @@ function detectVKPContent(text) {
 	return "UNKNOWN";
 }
 
-export { parseVKP, detectVKPContent };
+function normalizeVKP(text) {
+	return iconv.decode(text, 'windows-1251').replace(/(\r\n|\n|\r)/g, "\n");
+}
+
+function canonicalizeVKP(text) {
+	return iconv.encode(text.replace(/(\r\n|\n|\r)/g, "\r\n"), 'windows-1251');
+}
+
+export { normalizeVKP, canonicalizeVKP, parseVKP, detectVKPContent };

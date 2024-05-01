@@ -293,7 +293,7 @@ function extractExpr(d) {
 	if (expr.type == "RECORD" && expr.new.length > 0) {
 		let lastTokenInData = expr.new[expr.new.length - 1];
 		if (lastTokenInData.type == "NUMBER") {
-			if (after && after[0].length > 0 && after[0][0] != null) expr.value = new VkpParseError(`No space between number and comment`, { line: after[0][0].line, column: after[0][0].col });
+			if (after && after[0].length > 0 && after[0][0] != null) expr.value = new VkpParseError(`No whitespace between number and comment`, { line: after[0][0].line, column: after[0][0].col });
 		}
 	}
 

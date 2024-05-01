@@ -6,7 +6,8 @@
 	"type": "module",
 	"scripts": {
 		"test": "echo \"Error: no test specified\" && exit 1",
-		"gen-parser": "nearleyc vkp.ne -o src/grammar.js && prettier -w src/grammar.js"
+		"gen-parser": "nearleyc vkp.ne -o src/grammar.js && prettier -w src/grammar.js",
+		"pub": "npm publish --access public"
 	},
 	"author": "",
 	"license": "MIT",
