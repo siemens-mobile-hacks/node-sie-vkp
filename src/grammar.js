@@ -30,7 +30,8 @@ const lexer = moo.compile({
 	MULTILINE_COMMENT: { match: /\/\*[^]*?\*\//, lineBreaks: true },
 	UNFINISHED_COMMENT: { match: /\/\*[^]*$/, lineBreaks: true },
 	TRAILING_COMMENT_END: /\*\//,
-	NEWLINE: { match: /(?:\r\n|\n)/, lineBreaks: true }
+	NEWLINE: { match: /(?:\r\n|\n)/, lineBreaks: true },
+	ERROR: { match: /.+?$/, lineBreaks: false }
 });
 
 const UINT_PARSER_DATA = [
@@ -323,6 +324,7 @@ let ParserRules = [
 	{ name: "expr$subexpression$1", symbols: ["record_lite"] },
 	{ name: "expr$subexpression$1", symbols: [lexer.has("PRAGMA") ? { type: "PRAGMA" } : PRAGMA] },
 	{ name: "expr$subexpression$1", symbols: [lexer.has("OFFSET") ? { type: "OFFSET" } : OFFSET] },
+	{ name: "expr$subexpression$1", symbols: [lexer.has("ERROR") ? { type: "ERROR" } : ERROR] },
 	{ name: "expr", symbols: ["before_expr", "expr$subexpression$1", "after_expr"], postprocess: extractExpr },
 	{ name: "before_expr$ebnf$1", symbols: [] },
 	{ name: "before_expr$ebnf$1$subexpression$1", symbols: [lexer.has("MULTILINE_COMMENT") ? { type: "MULTILINE_COMMENT" } : MULTILINE_COMMENT], postprocess: id },

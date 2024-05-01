@@ -27,6 +27,7 @@ const lexer = moo.compile({
 	UNFINISHED_COMMENT:		{ match: /\/\*[^]*$/, lineBreaks: true },
 	TRAILING_COMMENT_END:	/\*\//,
 	NEWLINE:				{ match: /(?:\r\n|\n)/, lineBreaks: true },
+	ERROR:					{ match: /.+?$/, lineBreaks: false }
 });
 
 const UINT_PARSER_DATA = [
@@ -311,7 +312,7 @@ function filterNull(d) {
 patch			-> expressions {% (d) => filterNull(d) || [] %}
 expressions		-> expr_or_empty (%NEWLINE expr_or_empty):* {% extractList %}
 expr_or_empty	-> expr {% id %} | empty_expr {% id %} | null {% skip %}
-expr			-> before_expr (record_full | record_lite | %PRAGMA | %OFFSET) after_expr {% extractExpr %}
+expr			-> before_expr (record_full | record_lite | %PRAGMA | %OFFSET | %ERROR) after_expr {% extractExpr %}
 
 before_expr		-> (%MULTILINE_COMMENT {% id %} | SP {% skip %}):*
 after_expr		-> (%MULTILINE_COMMENT {% id %} | %UNFINISHED_COMMENT {% id %} | %COMMENT {% id %} | SP {% skip %}):*

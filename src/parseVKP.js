@@ -58,7 +58,12 @@ function parseVKP(text, options) {
 			continue;
 		}
 
-		if (n.type == "OFFSET") {
+		if (n.type == "COMMENTS") {
+			// Ignore comments
+		} else if (n.type == "ERROR") {
+			let loc = { line: n.line, column: n.col };
+			vkp.errors.push(new VkpParseError(`Syntax error`, loc));
+		} else if (n.type == "OFFSET") {
 			offsetCorrector = n.value;
 			offsetCorrectorLoc = { line: n.line, column: n.col };
 			offsetCorrectorNode = n;
@@ -136,6 +141,9 @@ function parseVKP(text, options) {
 				placeholder:	isPlaceholder,
 				pragmas:		{...pragmas}
 			});
+		} else {
+			let loc = { line: n.line, column: n.col };
+			vkp.errors.push(new VkpParseError(`Unexpected TOKEN: ${n.type}`, loc));
 		}
 	}
 
