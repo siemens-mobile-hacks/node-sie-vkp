@@ -23,22 +23,22 @@ let vkp = parseVKP(patchText);
 console.dir(vkp, { depth: null });
 
 if (vkp.warnings.length || vkp.errors.length) {
-	for (let warn of vkp.warnings) {
-		console.log(`Warning: ${warn.message}`);
-		console.log("```");
-		console.log(warn.codeFrame(patchText));
-		console.log("```");
-		console.log("");
-	}
+    for (let warn of vkp.warnings) {
+        console.log(`Warning: ${warn.message}`);
+        console.log("```");
+        console.log(warn.codeFrame(patchText));
+        console.log("```");
+        console.log("");
+    }
 
-	for (let err of vkp.errors) {
-		console.log(`Error: ${err.message}`);
-		console.log("```");
-		console.log(err.codeFrame(patchText));
-		console.log("```");
-		console.log("");
-	}
+    for (let err of vkp.errors) {
+        console.log(`Error: ${err.message}`);
+        console.log("```");
+        console.log(err.codeFrame(patchText));
+        console.log("```");
+        console.log("");
+    }
 
-	console.log("");
+    console.log("");
 }
 ```
