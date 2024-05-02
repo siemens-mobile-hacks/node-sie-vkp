@@ -69,7 +69,14 @@ function parseVKP(text, options) {
 		}
 
 		if (n.type == "COMMENTS") {
-			// Ignore comments
+			for (let comment of n.comments) {
+				let loc = { line: comment.line, column: comment.col };
+				if (comment.type == "UNFINISHED_COMMENT") {
+					vkp.warnings.push(new VkpParseError(`Unfinished multiline comment`, loc));
+				} else if (comment.type == "TRAILING_COMMENT_END") {
+					vkp.warnings.push(new VkpParseError(`Trailing multiline comment end`, loc));
+				}
+			}
 		} else if (n.type == "ERROR") {
 			let loc = { line: n.line, column: n.col };
 			vkp.errors.push(new VkpParseError(`Syntax error`, loc));
@@ -134,7 +141,7 @@ function parseVKP(text, options) {
 				}
 
 				if (oldData.length > 0 && oldData.length < newData.length) {
-					vkp.errors.push(new VkpParseError(`Old data (${oldData.length} bytes) is less than new data (${newData.length} bytes).`, oldDataloc));
+					vkp.errors.push(new VkpParseError(`Old data (${oldData.length} bytes) is less than new data (${newData.length} bytes)`, oldDataloc));
 					break;
 				}
 
