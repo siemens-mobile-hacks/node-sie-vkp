@@ -129,27 +129,26 @@ function parseVKP(text, options) {
 			let newData;
 
 			if (isPlaceholder) {
-				newData = null;
 				if (!options.allowPlaceholders)
 					vkp.errors.push(new VkpParseError(`Found placeholder instead of real patch data`, newDataloc));
-			} else {
-				newData = Buffer.concat(n.new.map((d) => d.value));
+			}
 
-				if (pragmas.old_equal_ff) {
-					oldData = Buffer.alloc(newData.length);
-					oldData.fill(0xFF);
-				}
+			newData = Buffer.concat(n.new.map((d) => d.value));
 
-				if (oldData.length > 0 && oldData.length < newData.length) {
-					vkp.errors.push(new VkpParseError(`Old data (${oldData.length} bytes) is less than new data (${newData.length} bytes)`, oldDataloc));
-					break;
-				}
+			if (pragmas.old_equal_ff) {
+				oldData = Buffer.alloc(newData.length);
+				oldData.fill(0xFF);
+			}
 
-				if (pragmas.warn_no_old_on_apply && !oldData.length) {
-					if (!options.allowEmptyOldData)
-						vkp.warnings.push(new VkpParseError(`Old data is not specified, undo operation is impossible`, newDataloc));
-					vkp.needRecovery = true;
-				}
+			if (oldData.length > 0 && oldData.length < newData.length) {
+				vkp.errors.push(new VkpParseError(`Old data (${oldData.length} bytes) is less than new data (${newData.length} bytes)`, oldDataloc));
+				break;
+			}
+
+			if (pragmas.warn_no_old_on_apply && !oldData.length) {
+				if (!options.allowEmptyOldData)
+					vkp.warnings.push(new VkpParseError(`Old data is not specified, undo operation is impossible`, newDataloc));
+				vkp.needRecovery = true;
 			}
 
 			vkp.writes.push({

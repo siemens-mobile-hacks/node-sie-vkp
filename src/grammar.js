@@ -11,6 +11,8 @@ import { VkpParseError } from "./VkpParseError.js";
 // Set to true for https://omrelli.ug/nearley-playground/
 const TEST_MODE = false;
 
+const RE_PLACEHOLDERS = [/(?:0x)?(?:[a-fA-F0-9]*(?:XX|xx|YY|yy|ZZ|zz|HH|hh|nn|NN|Nn|MS|ML|\?\?)[a-fA-F0-9]*)+(?!\w)/, /(?:0i[+-]?)(?:[0-9]*(?:[xyz?]+)[0-9]*)+(?!\w)/];
+
 const lexer = moo.compile({
 	WHITESPACE: /[ \t]+/,
 	PRAGMA: { match: /#pragma[ \t\w]+/, value: parsePragma, lineBreaks: false },
@@ -19,11 +21,7 @@ const lexer = moo.compile({
 	ADDRESS: { match: /(?:0[xX])?[a-fA-F0-9]+:/, value: parseAddress, lineBreaks: false },
 	NUMBER: { match: [/0x[a-fA-F0-9]+(?:\b|$)/, /0n[10]+(?:\b|$)/, /0i[+-]?[0-9]+(?!\w)/], value: parseAnyNumber, lineBreaks: false },
 	DATA: { match: /[a-fA-F0-9]+\b/, value: parseHexData, lineBreaks: false },
-	PLACEHOLDER: [
-		// quirks
-		/(?:0x)?(?:[a-fA-F0-9]*(?:XX|xx|YY|yy|ZZ|zz|HH|hh|nn|NN|Nn|MS|ML|\?\?|[A-F0-9]N)[a-fA-F0-9]*)+(?!\w)/,
-		/(?:0i[+-]?)(?:[0-9]*(?:[xyz?]+)[0-9]*)+(?!\w)/
-	],
+	PLACEHOLDER: { match: RE_PLACEHOLDERS, value: parsePlaceholder, lineBreaks: false },
 	STRING: { match: /(?:"(?:\\[^]|[^"\\])*?"|'(?:\\[^]|[^"\\])*?')/, value: parseString, lineBreaks: true },
 	COMMA: ",",
 	LINE_ESCAPE: /\\(?:\r\n|\n)/,
@@ -132,6 +130,15 @@ function parseAnyNumber(v) {
 
 	let loc = { line: lexer.line, column: lexer.col };
 	return new VkpParseError(`Invalid number: ${v}`, loc);
+}
+
+function parsePlaceholder(value) {
+	let m;
+	if ((m = value.match(/^(0i|0x|0n)(.*?)$/i))) {
+		return parseAnyNumber(m[1] + m[2].replace(/[^0-9a-f]/gi, "0"));
+	} else {
+		return parseHexData(value.replace(/[^0-9a-f]/gi, "0"));
+	}
 }
 
 function parseString(value) {
