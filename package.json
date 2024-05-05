@@ -1,7 +1,7 @@
 {
 	"name": "@sie-js/vkp",
 	"version": "1.0.0",
-	"description": "",
+	"description": "Parser and utils for the .VKP files format which is used in the V-Klay.",
 	"main": "src/index.js",
 	"type": "module",
 	"scripts": {
@@ -18,5 +18,8 @@
 	"devDependencies": {
 		"glob": "^10.3.12",
 		"jest": "^29.7.0"
+	},
+	"repository": {
+		"url": "git+https://github.com/siemens-mobile-hacks/node-sie-vkp.git"
 	}
 }
