@@ -13,13 +13,13 @@ npm i @sie-js/vkp
 
 ```js
 import fs from 'fs';
-import { normalizeVKP, parseVKP } from '@sie-js/vkp';
+import { vkpNormalize, vkpParse } from '@sie-js/vkp';
 
 // Convert from windows-1251 to UTF-8 + replace CRLF to LF
-let patchText = normalizeVKP(fs.readFileSync('../patches/patches/E71v45/10732-ElfPack-18_03_2024-v3_2_2.vkp'));
+let patchText = vkpNormalize(fs.readFileSync('../patches/patches/E71v45/10732-ElfPack-18_03_2024-v3_2_2.vkp'));
 
 // Parse patch
-let vkp = parseVKP(patchText);
+let vkp = vkpParse(patchText);
 console.dir(vkp, { depth: null });
 
 if (vkp.warnings.length || vkp.errors.length) {

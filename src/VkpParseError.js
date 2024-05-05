@@ -1,7 +1,8 @@
 export class VkpParseError extends Error {
 	loc;
-	constructor(message, loc) {
-		super(`${message} at line ${loc.line} col ${loc.column}`);
+	hint;
+	constructor(message, loc, hint) {
+		super(`${message} at line ${loc.line} col ${loc.column}${hint ? "\n" + hint : ""}`);
 		this.name = "VkpParseError";
 		this.loc = loc;
 	}

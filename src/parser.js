@@ -1,201 +1,497 @@
-import nearley from 'nearley';
-import grammar from './grammar.js';
 import iconv from 'iconv-lite';
-import { VkpParseError, getLocByOffset } from './VkpParseError.js';
+import { LEXER, TOKEN } from './lexer.js';
+import { VkpParseError } from './VkpParseError.js';
 
-const DEFAULT_PRAGMAS = {
-	warn_no_old_on_apply:		true,
-	warn_if_new_exist_on_apply:	true,
-	warn_if_old_exist_on_undo:	true,
-	undo:						true,
-	old_equal_ff:				false,
+const UINT_PARSER_DATA = [
+	[3,		0xFF,					8], // 1b
+	[5,		0xFFFF,					16], // 2b
+	[8,		0xFFFFFF,				24], // 3b
+	[10,	0xFFFFFFFF,				32], // 4b
+	[13,	0xFFFFFFFFFF,			40], // 5b
+	[15,	0xFFFFFFFFFFFF,			48], // 6b
+	[17,	0xFFFFFFFFFFFFFFn,		56], // 7b
+	[20,	0xFFFFFFFFFFFFFFFFn,	64], // 8b
+];
+
+const SINT_PARSER_DATA = [
+	[3,		0x7F,					8], // 1b
+	[5,		0x7FFF,					16], // 2b
+	[8,		0x7FFFFF,				24], // 3b
+	[10,	0x7FFFFFFF,				32], // 4b
+	[13,	0x7FFFFFFFFF,			40], // 5b
+	[15,	0x7FFFFFFFFFFF,			48], // 6b
+	[17,	0x7FFFFFFFFFFFFFn,		56], // 7b
+	[20,	0x7FFFFFFFFFFFFFFFn,	64], // 8b
+];
+
+const STR_ESCAPE_TABLE = {
+	"a":	"\x07",
+	"b":	"\b",
+	"t":	"\t",
+	"r":	"\r",
+	"n":	"\n",
+	"v":	"\v",
+	"f":	"\f",
+	"e":	"\x1B",
+	"\\":	"\\",
+	"/":	"/",
+	"*":	"*",
+	"\"":	"\"",
+	"'":	"'",
+	"`":	"`",
+	" ":	" ",
 };
 
-function parseVKP(text, options) {
+let state;
+
+function noop() {
+
+}
+
+function vkpRawParser(text, options = {}) {
 	options = {
-		allowEmptyOldData:	false,
-		allowPlaceholders:	false,
-		ast:				false,
+		onPragma: noop,
+		onPatchData: noop,
+		onOffset: noop,
+		onComments: noop,
+		onWarning: noop,
+		onError: noop,
 		...options
 	};
 
-	let vkp = {
-		ast: null,
-		valid: false,
-		writes: [],
-		warnings: [],
-		errors: [],
-		needRecovery: false
+	state = {
+		token:			null,
+		prevToken:		null,
+		warnings:		[],
+		onPragma:		options.onPragma,
+		onPatchData:	options.onPatchData,
+		onOffset:		options.onOffset,
+		onComments:		options.onComments,
+		onWarning:		options.onWarning,
+		onError:		options.onError,
 	};
 
-	let parser = new nearley.Parser(nearley.Grammar.fromCompiled(grammar));
-	try {
-		parser.feed(text);
-		parser.finish();
-	} catch (e) {
-		let m;
-		let loc = { line: 1, column: 1 };
-		if (e.token) {
-			loc = { line: e.token.line, column: e.token.col };
-		} else if ((m = e.message.match(/at line (\d+) col (\d+)/))) {
-			loc = { line: +m[1], column: +m[2] };
+	LEXER.reset(text);
+
+	let token;
+	while ((token = peekToken())) {
+		try {
+			if (token.type == TOKEN.ADDRESS) {
+				let loc = getLocation();
+				state.onPatchData(parsePatchRecord(), loc);
+			} else if (token.type == TOKEN.PRAGMA) {
+				let loc = getLocation();
+				state.onPragma(parsePatchPragma(), loc);
+			} else if (token.type == TOKEN.OFFSET) {
+				let loc = getLocation();
+				state.onOffset(parsePatchOffsetCorrector(), loc);
+			} else if (token.type == TOKEN.NEWLINE || token.type == TOKEN.WHITESPACE) {
+				nextToken();
+			} else if (token.type == TOKEN.COMMENT || token.type == TOKEN.MULTILINE_COMMENT || token.type == TOKEN.UNFINISHED_COMMENT) {
+				let loc = getLocation();
+				state.onComments(parseComments(), loc);
+			} else if (token.type == TOKEN.TRAILING_COMMENT_END) {
+				state.onWarning(new VkpParseError(`Trailing multiline comment end`, getLocation()));
+				nextToken();
+			} else {
+				throw new VkpParseError("Syntax error", getLocation());
+			}
+		} catch (e) {
+			let loc = getLocation();
+			let token;
+			while ((token = nextToken())) {
+				if (token.type == TOKEN.NEWLINE)
+					break;
+			}
+			state.onError(e, loc);
 		}
-
-		if (options.ast)
-			vkp.ast = parser.results && parser.results.length ? parser.results[0] : [];
-
-		vkp.errors.push(new VkpParseError(`Invalid syntax`, loc));
-		return vkp;
 	}
 
-	if (options.ast)
-		vkp.ast = parser.results && parser.results.length ? parser.results[0] : [];
+	state = null;
+}
 
-	if (parser.results.length != 1) {
-		vkp.errors.push(new VkpParseError(`Invalid parser results! Internal error!`, { line: 1, column: 1 }));
-		return vkp;
-	}
-
-	let pragmas = {...DEFAULT_PRAGMAS};
-	let pragma2loc = {};
-	let offsetCorrector = 0;
-	let offsetCorrectorLoc;
-	let offsetCorrectorNode;
-
-	for (let n of parser.results[0]) {
-		if ((n.value instanceof Error)) {
-			vkp.errors.push(n.value);
-			continue;
-		}
-
-		if (n.type == "COMMENTS") {
-			for (let comment of n.comments) {
-				let loc = { line: comment.line, column: comment.col };
-				if (comment.type == "UNFINISHED_COMMENT") {
-					vkp.warnings.push(new VkpParseError(`Unfinished multiline comment`, loc));
-				} else if (comment.type == "TRAILING_COMMENT_END") {
-					vkp.warnings.push(new VkpParseError(`Trailing multiline comment end`, loc));
-				}
-			}
-		} else if (n.type == "ERROR") {
-			let loc = { line: n.line, column: n.col };
-			vkp.errors.push(new VkpParseError(`Syntax error`, loc));
-		} else if (n.type == "OFFSET") {
-			offsetCorrector = n.value;
-			offsetCorrectorLoc = { line: n.line, column: n.col };
-			offsetCorrectorNode = n;
-		} else if (n.type == "PRAGMA") {
-			let loc = { line: n.line, column: n.col };
-
-			if (n.value.action == "enable") {
-				if (pragmas[n.value.name]) {
-					vkp.warnings.push(new VkpParseError(`Useless "#pragma ${n.value.action} ${n.value.name}" has no effect`, loc));
-				} else {
-					pragmas[n.value.name] = true;
-					pragma2loc[n.value.name] = loc;
-				}
-			} else if (n.value.action == "disable") {
-				if (!pragmas[n.value.name]) {
-					vkp.warnings.push(new VkpParseError(`Useless "#pragma ${n.value.action} ${n.value.name}" has no effect`, loc));
-				} else {
-					pragma2loc[n.value.name] = loc;
-					pragmas[n.value.name] = false;
-				}
-			}
-		} else if (n.type == "RECORD") {
-			let loc = { line: n.address.line, column: n.address.col };
-			let oldDataloc = n.old.length ? { line: n.old[0].line, column: n.old[0].col } : loc;
-			let newDataloc = n.new.length ? { line: n.new[0].line, column: n.new[0].col } : loc;
-
-			// Check for errors
-			let fatalErrors = 0;
-			let isPlaceholder = false;
-
-			for (let d of [n.old, n.new]) {
-				for (let w of d) {
-					if ((w.value instanceof Error)) {
-						vkp.errors.push(w.value);
-						fatalErrors++;
-					} else if (w.type == "PLACEHOLDER") {
-						isPlaceholder = true;
-					}
-				}
-			}
-
-			if (fatalErrors)
-				break;
-
-			let oldData = Buffer.concat(n.old.map((d) => d.value));
-			let newData;
-
-			if (isPlaceholder) {
-				if (!options.allowPlaceholders)
-					vkp.errors.push(new VkpParseError(`Found placeholder instead of real patch data`, newDataloc));
-			}
-
-			newData = Buffer.concat(n.new.map((d) => d.value));
-
-			if (pragmas.old_equal_ff) {
-				oldData = Buffer.alloc(newData.length);
-				oldData.fill(0xFF);
-			}
-
-			if (oldData.length > 0 && oldData.length < newData.length) {
-				vkp.errors.push(new VkpParseError(`Old data (${oldData.length} bytes) is less than new data (${newData.length} bytes)`, oldDataloc));
-				break;
-			}
-
-			if (pragmas.warn_no_old_on_apply && !oldData.length) {
-				if (!options.allowEmptyOldData)
-					vkp.warnings.push(new VkpParseError(`Old data is not specified, undo operation is impossible`, newDataloc));
-				vkp.needRecovery = true;
-			}
-
-			vkp.writes.push({
-				addr:			offsetCorrector + n.address.value,
-				old:			oldData,
-				new:			newData,
-				line:			n.address.line,
-				placeholder:	isPlaceholder,
-				pragmas:		{...pragmas}
-			});
+function parseComments() {
+	let comments = [];
+	let token;
+	while ((token = peekToken())) {
+		if (token.type == TOKEN.NEWLINE) {
+			nextToken();
+			break;
+		} else if (token.type == TOKEN.WHITESPACE) {
+			nextToken();
+		} else if (token.type == TOKEN.COMMENT || token.type == TOKEN.MULTILINE_COMMENT || token.type == TOKEN.UNFINISHED_COMMENT) {
+			if (token.type == TOKEN.UNFINISHED_COMMENT)
+				state.onWarning(new VkpParseError(`Unfinished multiline comment`, getLocation()));
+			comments.push(nextToken());
 		} else {
-			let loc = { line: n.line, column: n.col };
-			vkp.errors.push(new VkpParseError(`Unexpected TOKEN: ${n.type}`, loc));
+			break;
+		}
+	}
+	return comments;
+}
+
+function parsePatchPragma() {
+	let pragma = parsePragmaValue(peekToken().value);
+	nextToken();
+	let comments = parseCommentsAfterExpr();
+	return { pragma, comments };
+}
+
+function parsePatchOffsetCorrector() {
+	let text = peekToken().value;
+	let offset = parseOffsetValue(text);
+	nextToken();
+	let comments = parseCommentsAfterExpr();
+	return { text, offset, comments };
+}
+
+function parsePatchRecord() {
+	let address = parsePatchRecordAddress();
+
+	let data = [];
+	for (let i = 0; i < 2; i++) {
+		if (!parsePatchRecordSeparator())
+			break;
+		let loc = getLocation();
+		let [buffer, placeholders] = parsePatchData();
+		data.push({ loc, buffer: mergeBuffers(buffer), placeholders });
+	}
+
+	if (!data.length)
+		throw new VkpParseError(`Empty patch data record!`, getLocation());
+
+	let comments = parseCommentsAfterExpr();
+	return {
+		address,
+		comments,
+		old:	data.length == 2 ? data[0] : null,
+		new:	data.length == 2 ? data[1] : data[0],
+	};
+}
+
+function mergeBuffers(buffers) {
+	return buffers.length > 1 ? Buffer.concat(buffers) : buffers[0];
+}
+
+function parsePatchRecordAddress() {
+	let value = parseAddressValue(peekToken().value);
+	nextToken();
+	return value;
+}
+
+function parsePatchData() {
+	let data = [];
+	let token;
+	let placeholders = 0;
+	while ((token = peekToken())) {
+		if (token.type == TOKEN.COMMA) {
+			nextToken();
+		} else if (token.type == TOKEN.DATA) {
+			data.push(parseHexDataValue(peekToken().value));
+			nextToken();
+		} else if (token.type == TOKEN.PLACEHOLDER) {
+			data.push(parsePlaceholderValue(peekToken().value));
+			nextToken();
+			placeholders++;
+		} else if (token.type == TOKEN.NUMBER) {
+			data.push(parseAnyNumberValue(peekToken().value));
+			nextToken();
+		} else if (token.type == TOKEN.STRING) {
+			data.push(parseStringValue(peekToken().value));
+			nextToken();
+		} else if (token.type == TOKEN.LINE_ESCAPE) {
+			nextToken();
+		} else if (token.type == TOKEN.WHITESPACE || token.type == TOKEN.NEWLINE) {
+			break;
+		} else if (token.type == TOKEN.COMMENT || token.type == TOKEN.MULTILINE_COMMENT || token.type == TOKEN.UNFINISHED_COMMENT) {
+			if (prevToken().type == TOKEN.NUMBER)
+				throw new VkpParseError(`No whitespace between number and comment`, getLocation());
+			break;
+		} else {
+			throw new VkpParseError("Syntax error", getLocation());
+		}
+	}
+	return [data, placeholders];
+}
+
+function parsePatchRecordSeparator() {
+	let token;
+	while ((token = peekToken())) {
+		if (token.type == TOKEN.NEWLINE) {
+			return false;
+		} else if (token.type == TOKEN.DATA || token.type == TOKEN.PLACEHOLDER || token.type == TOKEN.NUMBER || token.type == TOKEN.STRING) {
+			return true;
+		} else if (token.type == TOKEN.COMMENT || token.type == TOKEN.MULTILINE_COMMENT || token.type == TOKEN.UNFINISHED_COMMENT) {
+			return false;
+		} else if (token.type == TOKEN.WHITESPACE || token.type == TOKEN.LINE_ESCAPE) {
+			nextToken();
+		} else {
+			throw new VkpParseError("Syntax error", getLocation());
+		}
+	}
+	return false;
+}
+
+function parseCommentsAfterExpr() {
+	let comments = [];
+	let token;
+	while ((token = peekToken())) {
+		if (token.type == TOKEN.NEWLINE) {
+			nextToken();
+			break;
+		} else if (token.type == TOKEN.WHITESPACE) {
+			nextToken();
+		} else if (token.type == TOKEN.COMMENT || token.type == TOKEN.MULTILINE_COMMENT || token.type == TOKEN.UNFINISHED_COMMENT) {
+			if (token.type == TOKEN.UNFINISHED_COMMENT)
+				state.onWarning(new VkpParseError(`Unfinished multiline comment`, getLocation()));
+			comments.push(nextToken());
+		} else {
+			throw new VkpParseError("Syntax error", getLocation());
+		}
+	}
+	return comments;
+}
+
+function nextToken() {
+	state.prevToken = state.token;
+	let token = state.token ? state.token : LEXER.next();
+	state.token = LEXER.next();
+	return token;
+}
+
+function peekToken() {
+	if (state.token == null)
+		state.token = LEXER.next();
+	return state.token;
+}
+
+function prevToken() {
+	return state.prevToken;
+}
+
+/**
+ * Token value parsers
+ * */
+function parseAnyNumberValue(v) {
+	let m;
+	let tmpBuffer = Buffer.allocUnsafe(8);
+
+	if ((m = v.match(/^0i([+-]\d+)$/i))) { // dec signed
+		let num = m[1];
+		for (let d of SINT_PARSER_DATA) {
+			if ((num.length - 1) <= d[0]) {
+				let parsedNum = BigInt(num);
+				if (parsedNum < -d[1] || parsedNum > d[1])
+					throw new VkpParseError(`Number ${v} exceeds allowed range -${d[1].toString(10)} ... +${d[1].toString(10)}`, getLocation());
+				if ((num.length - 1) < d[0] && d[0] > 3) {
+					throw new VkpParseError(`The wrong number of digits in integer (${v})`, getLocation(),
+						"Must be: 3 (for BYTE), 5 (for WORD), 8 (for 3 BYTES), 10 (for DWORD), 13 (for 5 BYTES), 15 (for 6 BYTES),  17 (for 7 BYTES), 20 (for 8 BYTES)." +
+						"Use leading zeroes to match the number of digits.");
+				}
+				tmpBuffer.writeBigUInt64LE(BigInt.asUintN(d[2], parsedNum), 0);
+				return tmpBuffer.subarray(0, d[2] / 8);
+			}
+		}
+	} else if ((m = v.match(/^0i(\d+)$/i))) { // dec unsigned
+		let num = m[1];
+		for (let d of UINT_PARSER_DATA) {
+			if (num.length <= d[0]) {
+				let parsedNum = d[2] <= 32 ? parseInt(num, 10) : BigInt(num);
+				if (parsedNum < 0 || parsedNum > d[1])
+					throw new VkpParseError(`Number ${v} exceeds allowed range 0 ... ${d[1].toString(10)}`, getLocation());
+				if (num.length < d[0] && d[0] > 3) {
+					throw new VkpParseError(`The wrong number of digits in integer (${v})`, getLocation(),
+						"Must be: 3 (for BYTE), 5 (for WORD), 8 (for 3 BYTES), 10 (for DWORD), 13 (for 5 BYTES), 15 (for 6 BYTES),  17 (for 7 BYTES), 20 (for 8 BYTES)." +
+						"Use leading zeroes to match the number of digits.");
+				}
+				if (d[2] <= 32) {
+					tmpBuffer.writeUInt32LE(parsedNum, 0);
+					return tmpBuffer.subarray(0, d[2] / 8);
+				} else {
+					tmpBuffer.writeBigUInt64LE(parsedNum, 0);
+					return tmpBuffer.subarray(0, d[2] / 8);
+				}
+			}
+		}
+	} else if ((m = v.match(/^0x([a-f0-9]+)$/i))) { // hex unsigned
+		let hexnum = m[1];
+		if (hexnum.length % 2)
+			hexnum = "0" + hexnum;
+		if (hexnum.length > 8)
+			throw new VkpParseError(`Number ${v} exceeds allowed range 0x00000000 ... 0xFFFFFFFF`, getLocation());
+		let number = parseInt(`0x${hexnum}`, 16);
+		tmpBuffer.writeUInt32LE(number, 0);
+		return tmpBuffer.subarray(0, Math.ceil(hexnum.length / 2));
+	} else if ((m = v.match(/^0n([10]+)$/i))) { // binary unsigned
+		if (m[1].length > 32)
+			throw new VkpParseError(`Number ${v} exceeds allowed range 0n0 ... 0n11111111111111111111111111111111`, getLocation());
+		let number = parseInt(m[1], 2);
+		tmpBuffer.writeUInt32LE(number, 0);
+		return tmpBuffer.subarray(0, Math.ceil(m[1].length / 8));
+	}
+
+	throw new VkpParseError(`Invalid number: ${v}`, getLocation());
+}
+
+function parsePlaceholderValue(value) {
+	let m;
+	if ((m = value.match(/^(0i|0x|0n)(.*?)$/i))) {
+		return parseAnyNumberValue(m[1] + m[2].replace(/[^0-9a-f]/gi, '0'));
+	} else {
+		return parseHexDataValue(value.replace(/[^0-9a-f]/gi, '0'));
+	}
+}
+
+function parseStringValue(value) {
+	let m;
+	if ((m = value.match(/(\/\*|\*\/|\/\/)/))) {
+		throw new VkpParseError(`Unescaped ${m[1]} is not allowed in string: ${value}`, getLocation(),
+			`Escape these ambiguous characters like this: \\/* or \\/\\/.`);
+	}
+
+	let text = value.slice(1, -1);
+
+	let offset = 0;
+	let parts = [];
+	let tmp = "";
+	let unicode = (value.charAt(0) == "'");
+	let escape = false;
+
+/*
+	if (!unicode && value.match(/[^\u0000-\u007F]/)) {
+		throw new VkpParseError(`ASCII string with non-ASCII characters`, getLocation(),
+			`Please use only ASCII-safe characters from the range U+0000-U+007F or \\xNN escape sequences.`);
+	}
+*/
+
+	let breakpoint = () => {
+		if (tmp.length) {
+			parts.push(tmp);
+			tmp = "";
+		}
+	};
+
+	let getStrLocation = (i) => {
+		let loc = getLocation();
+		loc.column += i;
+		return loc;
+	};
+
+	for (let i = 0; i < text.length; i++) {
+		let c = text.charAt(i);
+		if (escape) {
+			if (c == "\r") {
+				if (text.charAt(i + 1) == "\n")
+					i++;
+			} else if (c == "\n") {
+				// Ignore
+			} else if (c == "x") {
+				let hex = text.substr(i + 1, 2);
+				if (hex.length == 2) {
+					breakpoint();
+					let hexnum = parseInt(`0x${hex}`);
+					if (unicode) {
+						parts.push(Buffer.from([ hexnum, 0x00 ]));
+					} else {
+						if (hexnum >= 0x7F && !unicode)
+							throw new VkpParseError(`Bad escape sequence (\\x${hex})`, getStrLocation(i), `Allowed range: \\x00-\\x7F.`);
+						parts.push(Buffer.from([ hexnum ]));
+					}
+					i += 2;
+				} else {
+					throw new VkpParseError(`Unknown escape sequence (\\x${hex})`, getStrLocation(i));
+				}
+			} else if (c == "u") {
+				let hex = text.substr(i + 1, 4);
+				if (hex.length == 4) {
+					breakpoint();
+					let hexnum = parseInt(`0x${hex}`);
+					if (unicode) {
+						parts.push(Buffer.from([ hexnum & 0xFF, (hexnum >> 8) & 0xFF ]));
+					} else {
+						throw new VkpParseError(`Unknown escape sequence (\\u${hex})`, getStrLocation(i));
+					}
+					i += 4;
+				} else {
+					throw new VkpParseError(`Unknown escape sequence (\\u${hex})`, getStrLocation(i));
+				}
+			} else if (c.match(/[0-7]/)) {
+				let ocatlLen = 1;
+				for (let j = 1; j < 3; j++) {
+					if (!text.charAt(i + j).match(/[0-7]/))
+						break;
+					ocatlLen++;
+				}
+
+				let oct = parseInt(text.substr(i, ocatlLen), 8);
+				if (oct > 0xFF)
+					throw new VkpParseError(`Unknown escape sequence (\\${text.substr(i, ocatlLen)})`, getStrLocation(i));
+
+				breakpoint();
+				if (unicode) {
+					parts.push(Buffer.from([ oct, 0x00 ]));
+				} else {
+					parts.push(Buffer.from([ oct ]));
+				}
+
+				i += ocatlLen - 1;
+			} else if ((c in STR_ESCAPE_TABLE)) {
+				tmp += STR_ESCAPE_TABLE[c];
+			} else {
+				throw new VkpParseError(`Unknown escape sequence (\\${c})`, getStrLocation(i));
+			}
+			escape = false;
+		} else {
+			if (c == '\\') {
+				escape = true;
+			} else {
+				tmp += c;
+			}
 		}
 	}
 
-	let unsinishedPragmas = [];
-	for (let k in pragmas) {
-		if (pragmas[k] !== DEFAULT_PRAGMAS[k])
-			vkp.warnings.push(new VkpParseError(`Uncanceled pragma "${k}"`, pragma2loc[k]));
+	breakpoint();
+
+	if (unicode) {
+		return Buffer.concat(parts.map((p) => typeof p === "string" ? iconv.encode(p, 'utf-16', { addBOM: false }) : p));
+	} else {
+		return Buffer.concat(parts.map((p) => typeof p === "string" ? iconv.encode(p, 'windows-1251') : p));
 	}
-
-	vkp.valid = (vkp.errors.length == 0);
-
-	if (offsetCorrector != 0)
-		vkp.warnings.push(new VkpParseError(`Uncanceled offset ${offsetCorrectorNode.text}`, offsetCorrectorLoc));
-
-	return vkp;
 }
 
-function detectVKPContent(text) {
-	let trimmedText = text.replace(/\/\*.*?\*\//gs, '').replace(/(\/\/|;|#).*?$/mg, '');
-	if (trimmedText.match(/^\s*(0x[a-f0-9]+|[a-f0-9]+)\s*:[^\\/]/mi))
-		return "PATCH";
-	if (!trimmedText.trim().length)
-		return "EMPTY";
-	if (text.match(/;!к патчу прикреплён файл, https?:\/\//i))
-		return "DOWNLOAD_STUB";
-	return "UNKNOWN";
+function parseOffsetValue(v) {
+	let result = parseInt(v.replace(/^([+-])(0x)?/i, '$10x'), 16);
+	if (isNaN(result))
+		throw new VkpParseError(`Invalid offset: ${v}`, getLocation());
+	if (result > 0xFFFFFFFF)
+		throw new VkpParseError(`Offset ${v} exceeds allowed range 00000000 ... FFFFFFFF`, getLocation());
+	return result;
 }
 
-function normalizeVKP(text) {
-	return iconv.decode(text, 'windows-1251').replace(/(\r\n|\n|\r)/g, "\n");
+function parseAddressValue(v) {
+	let result = parseInt(v.replace(/^(0x)?(.*?):$/i, '0x$2'), 16);
+	if (isNaN(result))
+		throw new VkpParseError(`Invalid address: ${v}`, getLocation());
+	if (result > 0xFFFFFFFF)
+		throw new VkpParseError(`Address ${v} exceeds allowed range 00000000 ... FFFFFFFF`, getLocation());
+	return result;
 }
 
-function canonicalizeVKP(text) {
-	return iconv.encode(text.replace(/(\r\n|\n|\r)/g, "\r\n"), 'windows-1251');
+function parseHexDataValue(v) {
+	if (v.length % 2 != 0)
+		throw new VkpParseError(`Hex data (${v}) must be even length`, getLocation());
+	return Buffer.from(v, "hex");
 }
 
-export { normalizeVKP, canonicalizeVKP, parseVKP, detectVKPContent };
+function parsePragmaValue(v) {
+	let m;
+	if (!(m = v.trim().match(/^#pragma\s+(enable|disable)\s+(warn_no_old_on_apply|warn_if_new_exist_on_apply|warn_if_old_exist_on_undo|undo|old_equal_ff)$/)))
+		throw new VkpParseError(`Invalid PRAGMA: ${v}`, getLocation());
+	return { name: m[2], action: m[1] };
+}
+
+function getLocation() {
+	return state.token ? { line: state.token.line, column: state.token.col } : { line: 1, column: 1 };
+}
+
+export { vkpRawParser };
