@@ -117,9 +117,26 @@ function vkpDetectContent(text) {
 	return "UNKNOWN";
 }
 
-// CP1251 -> UTF-8 + CRLF -> LF (with RTC support)
+// CP1251 -> UTF-8 + CRLF -> LF (with RTF support)
 async function vkpNormalizeWithRTF(text) {
+	if (!Buffer.isBuffer(text))
+		throw new Error(`Patch text is not Buffer!`);
+
 	if (text.indexOf('{\\rtf1') >= 0) {
+		// Strip RTF images
+		while (true) {
+			let pictureIndex = text.indexOf('{\\pict');
+			if (pictureIndex >= 0) {
+				let pictureEndIndex = text.indexOf('}', pictureIndex);
+				if (pictureIndex >= 0) {
+					text = Buffer.concat([ text.slice(0, pictureIndex), text.slice(pictureEndIndex + 1) ]);
+					continue;
+				}
+			}
+			break;
+		}
+
+		text = text.toString('utf-8').replace(/{\\pict.*?\}/gsi, ''); // remove pictures
 		let parsed = await new Promise((resolve, reject) => {
 			RTFParser.string(text, (err, doc) => {
 				if (err) {
@@ -129,9 +146,11 @@ async function vkpNormalizeWithRTF(text) {
 				}
 			});
 		});
+
 		let lines = [];
-		for (let p of parsed.content)
+		for (let p of parsed.content) {
 			lines.push(p.content.map((s) => s.value).join(''));
+		}
 		return lines.join('\n');
 	}
 	return iconv.decode(text, 'windows-1251').replace(/(\r\n|\n|\r)/g, "\n");
@@ -139,6 +158,8 @@ async function vkpNormalizeWithRTF(text) {
 
 // CP1251 -> UTF-8 + CRLF -> LF
 function vkpNormalize(text) {
+	if (!Buffer.isBuffer(text))
+		throw new Error(`Patch text is not Buffer!`);
 	return iconv.decode(text, 'windows-1251').replace(/(\r\n|\n|\r)/g, "\n");
 }
 
