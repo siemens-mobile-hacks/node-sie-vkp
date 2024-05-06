@@ -104,6 +104,8 @@ function vkpParse(text, options) {
 }
 
 function vkpDetectContent(text) {
+	if (text.indexOf('{\\rtf1') >= 0)
+		return "RTF";
 	let trimmedText = text.replace(/\/\*.*?\*\//gs, '').replace(/(\/\/|;|#).*?$/mg, '');
 	if (trimmedText.match(/^\s*(0x[a-f0-9]+|[a-f0-9]+)\s*:[^\\/]/mi))
 		return "PATCH";
