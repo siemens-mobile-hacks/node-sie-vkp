@@ -1,6 +1,7 @@
 import iconv from 'iconv-lite';
 import { vkpRawParser } from './parser.js';
 import { VkpParseError } from './VkpParseError.js';
+import RTFParser from 'rtf-parser';
 
 const DEFAULT_PRAGMAS = {
 	warn_no_old_on_apply:		true,
@@ -116,6 +117,26 @@ function vkpDetectContent(text) {
 	return "UNKNOWN";
 }
 
+// CP1251 -> UTF-8 + CRLF -> LF (with RTC support)
+async function vkpNormalizeWithRTF(text) {
+	if (text.indexOf('{\\rtf1') >= 0) {
+		let parsed = await new Promise((resolve, reject) => {
+			RTFParser.string(text, (err, doc) => {
+				if (err) {
+					reject(err);
+				} else {
+					resolve(doc);
+				}
+			});
+		});
+		let lines = [];
+		for (let p of parsed.content)
+			lines.push(p.content.map((s) => s.value).join(''));
+		return lines.join('\n');
+	}
+	return iconv.decode(text, 'windows-1251').replace(/(\r\n|\n|\r)/g, "\n");
+}
+
 // CP1251 -> UTF-8 + CRLF -> LF
 function vkpNormalize(text) {
 	return iconv.decode(text, 'windows-1251').replace(/(\r\n|\n|\r)/g, "\n");
@@ -126,4 +147,4 @@ function vkpCanonicalize(text) {
 	return iconv.encode(text.replace(/(\r\n|\n|\r)/g, "\r\n"), 'windows-1251');
 }
 
-export { vkpParse, vkpRawParser, vkpNormalize, vkpCanonicalize, vkpDetectContent };
+export { vkpParse, vkpRawParser, vkpNormalize, vkpNormalizeWithRTF, vkpCanonicalize, vkpDetectContent };
