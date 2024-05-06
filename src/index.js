@@ -59,7 +59,7 @@ function vkpParse(text, options) {
 			if (pragmas.old_equal_ff && !oldData)
 				oldData = Buffer.alloc(newData.length).fill(0xFF);
 
-			if (oldData&& oldData.length < newData.length)
+			if (oldData && oldData.length < newData.length)
 				vkp.errors.push(new VkpParseError(`Old data (${oldData.length} bytes) is less than new data (${newData.length} bytes)`, data.old.loc));
 
 			if (pragmas.warn_no_old_on_apply && !oldData) {
@@ -107,10 +107,10 @@ function vkpDetectContent(text) {
 	let trimmedText = text.replace(/\/\*.*?\*\//gs, '').replace(/(\/\/|;|#).*?$/mg, '');
 	if (trimmedText.match(/^\s*(0x[a-f0-9]+|[a-f0-9]+)\s*:[^\\/]/mi))
 		return "PATCH";
+	if (text.match(/;!(к патчу прикреплён файл|There is a file attached to this patch), https?:\/\//i))
+		return "DOWNLOAD_STUB";
 	if (!trimmedText.trim().length)
 		return "EMPTY";
-	if (text.match(/;!к патчу прикреплён файл, https?:\/\//i))
-		return "DOWNLOAD_STUB";
 	return "UNKNOWN";
 }
 
