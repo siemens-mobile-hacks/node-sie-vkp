@@ -1,6 +1,6 @@
 {
 	"name": "@sie-js/vkp",
-	"version": "1.0.5",
+	"version": "1.0.6",
 	"description": "Parser and utils for the .VKP files format which is used in the V-Klay.",
 	"main": "src/index.js",
 	"type": "module",
