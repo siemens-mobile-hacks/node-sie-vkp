@@ -97,6 +97,9 @@ function vkpRawParser(text, options = {}) {
 				throw new VkpParseError("Syntax error", getLocation());
 			}
 		} catch (e) {
+			if (!(e instanceof VkpParseError))
+				throw e;
+
 			let loc = getLocation();
 			let token;
 			while ((token = nextToken())) {
@@ -122,7 +125,8 @@ function parseComments() {
 		} else if (token.type == TOKEN.COMMENT || token.type == TOKEN.MULTILINE_COMMENT || token.type == TOKEN.UNFINISHED_COMMENT) {
 			if (token.type == TOKEN.UNFINISHED_COMMENT)
 				state.onWarning(new VkpParseError(`Unfinished multiline comment`, getLocation()));
-			comments.push(nextToken());
+			comments.push(parseCommentValue(token.value));
+			nextToken();
 		} else {
 			break;
 		}
@@ -133,16 +137,16 @@ function parseComments() {
 function parsePatchPragma() {
 	let pragma = parsePragmaValue(peekToken().value);
 	nextToken();
-	let comments = parseCommentsAfterExpr();
-	return { pragma, comments };
+	let comment = parseCommentsAfterExpr();
+	return { pragma, comment };
 }
 
 function parsePatchOffsetCorrector() {
 	let text = peekToken().value;
 	let offset = parseOffsetValue(text);
 	nextToken();
-	let comments = parseCommentsAfterExpr();
-	return { text, offset, comments };
+	let comment = parseCommentsAfterExpr();
+	return { text, offset, comment };
 }
 
 function parsePatchRecord() {
@@ -160,10 +164,10 @@ function parsePatchRecord() {
 	if (!data.length)
 		throw new VkpParseError(`Empty patch data record!`, getLocation());
 
-	let comments = parseCommentsAfterExpr();
+	let comment = parseCommentsAfterExpr();
 	return {
 		address,
-		comments,
+		comment,
 		old:	data.length == 2 ? data[0] : null,
 		new:	data.length == 2 ? data[1] : data[0],
 	};
@@ -244,12 +248,13 @@ function parseCommentsAfterExpr() {
 		} else if (token.type == TOKEN.COMMENT || token.type == TOKEN.MULTILINE_COMMENT || token.type == TOKEN.UNFINISHED_COMMENT) {
 			if (token.type == TOKEN.UNFINISHED_COMMENT)
 				state.onWarning(new VkpParseError(`Unfinished multiline comment`, getLocation()));
-			comments.push(nextToken());
+			comments.push(parseCommentValue(token.value));
+			nextToken();
 		} else {
 			throw new VkpParseError("Syntax error", getLocation());
 		}
 	}
-	return comments;
+	return comments.join(" ");
 }
 
 function nextToken() {
@@ -272,6 +277,19 @@ function prevToken() {
 /**
  * Token value parsers
  * */
+function parseCommentValue(v) {
+	if (v.startsWith(';')) {
+		return v.substr(1);
+	} else if (v.startsWith('#')) {
+		return v.substr(1);
+	} else if (v.startsWith('//')) {
+		return v.substr(2);
+	} else if (v.startsWith('/*')) {
+		return v.slice(2, -2);
+	}
+	throw new VkpParseError(`Invalid comment type`, getLocation());
+}
+
 function parseAnyNumberValue(v) {
 	let m;
 	let tmpBuffer = Buffer.allocUnsafe(8);

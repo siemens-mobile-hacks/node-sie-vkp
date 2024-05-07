@@ -168,4 +168,4 @@ function vkpCanonicalize(text) {
 	return iconv.encode(text.replace(/(\r\n|\n|\r)/g, "\r\n"), 'windows-1251');
 }
 
-export { vkpParse, vkpRawParser, vkpNormalize, vkpNormalizeWithRTF, vkpCanonicalize, vkpDetectContent };
+export { vkpParse, vkpRawParser, vkpNormalize, vkpNormalizeWithRTF, vkpCanonicalize, vkpDetectContent, VkpParseError };
