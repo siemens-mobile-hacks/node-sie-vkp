@@ -32,11 +32,11 @@ export function codeFrame(text, lineNum, colNum) {
 }
 
 export function getLocByOffset(text, offset) {
-	let line = 0;
+	let line = 1;
 	let column = 1;
 	for (let i = 0; i < text.length; i++) {
 		let c = text.charAt(i);
-		if (c == "\n" || (c == "\r" && text.charAt(i + 1) == "\n")) {
+		if (c == "\n") {
 			column = 1;
 			line++;
 		}
