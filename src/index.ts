@@ -1,29 +1,19 @@
 import iconv from "iconv-lite";
-import { vkpRawParser } from "./parser.js";
+import { VkpPragmaName, vkpRawParser } from "./parser.js";
 import { VkpLocation, VkpParseError } from "./VkpParseError.js";
 
 export type VkpContentType = "RTF" | "PATCH" | "DOWNLOAD_STUB" | "EMPTY" | "UNKNOWN";
 
-export interface VkpPragmas {
-	warn_no_old_on_apply: boolean;
-	warn_if_new_exist_on_apply: boolean;
-	warn_if_old_exist_on_undo: boolean;
-	undo: boolean;
-	old_equal_ff: boolean;
-	[key: string]: boolean;
-}
-
 export interface VkpWrite {
 	addr: number;
 	size: number;
-	old: Buffer | null;
+	old?: Buffer;
 	new: Buffer;
 	loc: VkpLocation;
-	pragmas: VkpPragmas;
+	pragmas: Record<VkpPragmaName, boolean>;
 }
 
 export interface VkpParseResult {
-	ast: any;
 	valid: boolean;
 	writes: VkpWrite[];
 	warnings: VkpParseError[];
@@ -41,7 +31,7 @@ export interface VkpOffsetCorrector {
 	loc: VkpLocation;
 }
 
-const DEFAULT_PRAGMAS: VkpPragmas = {
+const DEFAULT_PRAGMAS: Record<VkpPragmaName, boolean> = {
 	warn_no_old_on_apply:		true,
 	warn_if_new_exist_on_apply:	true,
 	warn_if_old_exist_on_undo:	true,
@@ -57,20 +47,19 @@ export function vkpParse(text: string, options?: VkpParseOptions): VkpParseResul
 	};
 
 	const vkp: VkpParseResult = {
-		ast: null,
 		valid: false,
 		writes: [],
 		warnings: [],
 		errors: [],
 	};
 
-	const pragmas: VkpPragmas = { ...DEFAULT_PRAGMAS };
+	const pragmas = { ...DEFAULT_PRAGMAS };
 	const pragmaToLocation: Record<string, VkpLocation> = {};
 	let offsetCorrector: VkpOffsetCorrector | undefined;
 
 	vkpRawParser(text, {
 		onPragma(value, loc) {
-			const pragmaName = value.pragma.name as keyof VkpPragmas;
+			const pragmaName = value.pragma.name;
 			if (value.pragma.action == "enable") {
 				if (pragmas[pragmaName]) {
 					vkp.warnings.push(new VkpParseError(
@@ -96,7 +85,7 @@ export function vkpParse(text: string, options?: VkpParseOptions): VkpParseResul
 			}
 		},
 		onPatchData(data, loc) {
-			let oldData = data.old ? data.old.buffer : null;
+			let oldData = data.old ? data.old.buffer : undefined;
 			const newData = data.new.buffer;
 
 			if (data.new.placeholders > 0) {
@@ -144,7 +133,7 @@ export function vkpParse(text: string, options?: VkpParseOptions): VkpParseResul
 		}
 	});
 
-	for (const k in pragmas) {
+	for (const k of Object.keys(pragmas) as VkpPragmaName[]) {
 		if (pragmas[k] !== DEFAULT_PRAGMAS[k]) {
 			const cancel = pragmas[k] ? `#pragma disable ${k}` : `#pragma enable ${k}`;
 			vkp.warnings.push(new VkpParseError(
@@ -243,4 +232,5 @@ export function vkpCanonicalize(text: string): Buffer {
 	return iconv.encode(text.replace(/(\r\n|\n|\r)/g, "\r\n"), 'windows-1251');
 }
 
-export { vkpRawParser, VkpParseError };
+export * from "./parser.js";
+export * from "./VkpParseError.js";

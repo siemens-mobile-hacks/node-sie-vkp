@@ -47,29 +47,32 @@ type VkpToken = Token & {
 	type: VkpTokenType;
 }
 
-interface VkpPragma {
-	name: string;
-	action: string;
+export type VkpPragmaName = 'warn_no_old_on_apply' | 'warn_if_new_exist_on_apply' | 'warn_if_old_exist_on_undo' | 'undo' | 'old_equal_ff';
+export type VkpPragmaAction = 'enable' | 'disable';
+
+export interface VkpPragma {
+	name: VkpPragmaName;
+	action: VkpPragmaAction;
 }
 
-interface VkpPragmaNode {
+export interface VkpPragmaNode {
 	pragma: VkpPragma;
 	comment: string;
 }
 
-interface VkpOffsetNode {
+export interface VkpOffsetNode {
 	text: string;
 	offset: number;
 	comment: string;
 }
 
-interface VkpPatchData {
+export interface VkpPatchData {
 	loc: VkpLocation;
 	buffer: Buffer;
 	placeholders: number;
 }
 
-interface VkpDataNode {
+export interface VkpPatchDataNode {
 	address: number;
 	comment: string;
 	old?: VkpPatchData;
@@ -81,7 +84,7 @@ interface VkpParserState {
 	prevToken?: VkpToken;
 	warnings: VkpParseError[];
 	onPragma: (value: VkpPragmaNode, loc: VkpLocation) => void;
-	onPatchData: (data: VkpDataNode, loc: VkpLocation) => void;
+	onPatchData: (data: VkpPatchDataNode, loc: VkpLocation) => void;
 	onOffset: (value: VkpOffsetNode, loc: VkpLocation) => void;
 	onComments: (comments: string[], loc: VkpLocation) => void;
 	onWarning: (warning: VkpParseError) => void;
@@ -90,7 +93,7 @@ interface VkpParserState {
 
 export interface VkpParserOptions {
 	onPragma?: (value: VkpPragmaNode, loc: VkpLocation) => void;
-	onPatchData?: (data: VkpDataNode, loc: VkpLocation) => void;
+	onPatchData?: (data: VkpPatchDataNode, loc: VkpLocation) => void;
 	onOffset?: (value: VkpOffsetNode, loc: VkpLocation) => void;
 	onComments?: (comments: string[], loc: VkpLocation) => void;
 	onWarning?: (warning: VkpParseError) => void;
@@ -204,7 +207,7 @@ function parsePatchOffsetCorrector(): VkpOffsetNode {
 	return { text, offset, comment };
 }
 
-function parsePatchRecord(): VkpDataNode {
+function parsePatchRecord(): VkpPatchDataNode {
 	const address = parsePatchRecordAddress();
 
 	const data: VkpPatchData[] = [];
@@ -468,7 +471,7 @@ function parseStringValue(value: string): Buffer {
 			} else if (c == "\n") {
 				// Ignore
 			} else if (c == "x") {
-				const hex = text.substr(i + 1, 2);
+				const hex = text.substring(i + 1, i + 1 + 2);
 				if (hex.length == 2) {
 					breakpoint();
 					const hexnum = parseInt(`0x${hex}`);
@@ -484,7 +487,7 @@ function parseStringValue(value: string): Buffer {
 					throw new VkpParseError(`Unknown escape sequence (\\x${hex})`, getStrLocation(i));
 				}
 			} else if (c == "u") {
-				const hex = text.substr(i + 1, 4);
+				const hex = text.substring(i + 1, i + 1 + 4);
 				if (hex.length == 4) {
 					breakpoint();
 					const hexnum = parseInt(`0x${hex}`);
@@ -505,9 +508,9 @@ function parseStringValue(value: string): Buffer {
 					octalLen++;
 				}
 
-				const oct = parseInt(text.substr(i, octalLen), 8);
+				const oct = parseInt(text.substring(i, i + octalLen), 8);
 				if (oct > 0xFF)
-					throw new VkpParseError(`Unknown escape sequence (\\${text.substr(i, octalLen)})`, getStrLocation(i));
+					throw new VkpParseError(`Unknown escape sequence (\\${text.substring(i, i + octalLen)})`, getStrLocation(i));
 
 				breakpoint();
 				if (unicode) {
@@ -569,7 +572,7 @@ function parsePragmaValue(v: string): VkpPragma {
 	let m: RegExpMatchArray | null;
 	if (!(m = v.trim().match(/^#pragma\s+(enable|disable)\s+(warn_no_old_on_apply|warn_if_new_exist_on_apply|warn_if_old_exist_on_undo|undo|old_equal_ff)$/)))
 		throw new VkpParseError(`Invalid PRAGMA: ${v}`, getLocation());
-	return { name: m[2], action: m[1] };
+	return { name: m[2] as VkpPragmaName, action: m[1] as VkpPragmaAction };
 }
 
 function getLocation(): VkpLocation {
