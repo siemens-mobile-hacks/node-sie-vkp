@@ -1,4 +1,5 @@
-import { vkpParse } from './index.js';
+import { test, expect } from "vitest";
+import { vkpParse } from "./index.js";
 
 test('warn: useless pragma', () => {
 	const vkp = vkpParse(`#pragma enable warn_no_old_on_apply`);

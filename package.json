@@ -2,14 +2,19 @@
 	"name": "@sie-js/vkp",
 	"version": "1.0.6",
 	"description": "Parser and utils for the .VKP files format which is used in the V-Klay.",
-	"main": "src/index.js",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
 	"type": "module",
 	"scripts": {
-		"test": "NODE_OPTIONS=--experimental-vm-modules jest",
-		"gen-parser": "nearleyc src/vkp.ne -o src/grammar.js && prettier -w src/grammar.js",
-		"pub": "npm publish --access public"
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"build": "tsc",
+		"dev": "tsc --watch"
 	},
-	"author": "",
+	"files": [
+		"./dist/src/*"
+	],
+	"author": "kirill.zhumarin@gmail.com",
 	"license": "MIT",
 	"dependencies": {
 		"iconv-lite": "^0.6.3",
@@ -18,8 +23,11 @@
 		"sprintf-js": "^1.1.3"
 	},
 	"devDependencies": {
+		"@types/jest": "^29.5.14",
+		"@types/node": "^22.14.1",
+		"@types/sprintf-js": "^1.1.4",
 		"glob": "^10.3.12",
-		"jest": "^29.7.0"
+		"vitest": "^3.1.1"
 	},
 	"repository": {
 		"url": "git+https://github.com/siemens-mobile-hacks/node-sie-vkp.git"

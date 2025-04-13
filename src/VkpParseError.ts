@@ -1,18 +1,24 @@
+export interface VkpLocation {
+	line: number;
+	column: number;
+}
+
 export class VkpParseError extends Error {
-	loc;
-	hint;
-	constructor(message, loc, hint) {
+	loc: VkpLocation;
+	hint?: string;
+	constructor(message: string, loc: VkpLocation, hint?: string) {
 		super(`${message} at line ${loc.line} col ${loc.column}${hint ? "\n" + hint : ""}`);
 		this.name = "VkpParseError";
 		this.loc = loc;
+		this.hint = hint;
 	}
 
-	codeFrame(text) {
+	codeFrame(text: string): string {
 		return codeFrame(text, this.loc.line, this.loc.column);
 	}
-};
+}
 
-export function codeFrame(text, lineNum, colNum) {
+export function codeFrame(text: string, lineNum: number, colNum: number): string {
 	const lines = text.split(/\r\n|\n/);
 	const maxLineNumLen = lines.length.toString().length + 1;
 	let out = "";
@@ -22,16 +28,16 @@ export function codeFrame(text, lineNum, colNum) {
 			n++;
 			continue;
 		}
-		out += `${n == lineNum ? '>' : ' '}${n.toString().padStart(maxLineNumLen, ' ')} | ${tab2spaces(line)}\n`;
+		out += `${n == lineNum ? '>' : ' '}${n.toString().padStart(maxLineNumLen, ' ')} | ${tabToSpaces(line)}\n`;
 		if (n == lineNum) {
-			out += ` ${" ".repeat(maxLineNumLen, ' ')} | ${str2spaces(line.substr(0, colNum - 1))}^\n`;
+			out += ` ${" ".repeat(maxLineNumLen)} | ${strToSpaces(line.substring(0, colNum - 1))}^\n`;
 		}
 		n++;
 	}
 	return out;
 }
 
-export function getLocByOffset(text, offset) {
+export function getLocByOffset(text: string, offset: number): VkpLocation {
 	let line = 1;
 	let column = 1;
 	for (let i = 0; i < text.length; i++) {
@@ -46,11 +52,11 @@ export function getLocByOffset(text, offset) {
 	return { line, column: 1 };
 }
 
-function str2spaces(line) {
-	return tab2spaces(line).replace(/./g, ' ');
+function strToSpaces(line: string): string {
+	return tabToSpaces(line).replace(/./g, ' ');
 }
 
-function tab2spaces(line) {
+function tabToSpaces(line: string): string {
 	let newStr = "";
 	let virtualSymbols = 0;
 	for (let i = 0; i < line.length; i++) {
