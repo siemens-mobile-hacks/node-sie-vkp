@@ -1,50 +1,57 @@
-import iconv from 'iconv-lite';
-import fs from 'fs';
-import path from 'path';
-import { Blob } from "buffer";
-import { globSync } from 'glob';
-import { vkpParse, vkpDetectContent } from '../src/index.js';
-import child_process from 'child_process';
+import iconv from "iconv-lite";
+import fs from "fs";
+import path from "path";
+import { globSync } from "glob";
+import { vkpDetectContent, vkpNormalizeWithRTF, vkpParse } from "../src/index.js";
+import child_process from "child_process";
 
-const PATCHES_DIR = `${import.meta.dirname}/../../patches/patches`;
+const PATCHES_DIR = new URL('../../patches/patches', import.meta.url).pathname;
+
+interface ArchiveContents {
+	lsarContents: {
+		XADFileName: string;
+		XADIndex: string | number;
+	}[];
+}
 
 for (let file of readFiles(PATCHES_DIR)) {
 	if (!file.match(/\.vkp$/))
 		continue;
 
-	let patchText = iconv.decode(fs.readFileSync(`${PATCHES_DIR}/${file}`), 'windows1251').replace(/(\r\n|\n)/g, '\n');
-	const patchUrl = patchText.match(/Details: (https?:\/\/.*?)$/m)[1];
+	let patchText = await vkpNormalizeWithRTF(fs.readFileSync(`${PATCHES_DIR}/${file}`));
+	const patchUrlMatch = patchText.match(/Details: (https?:\/\/.*?)$/m);
+	const patchUrl = patchUrlMatch ? patchUrlMatch[1] : 'unknown';
 
 	const detectedType = vkpDetectContent(patchText);
 	if (detectedType == "DOWNLOAD_STUB") {
 		const patchId = path.basename(file).split('-')[0];
 
-		const [additionalFile] = globSync(`${PATCHES_DIR}/*/${patchId}-*.{rar,zip}`);
-		if (!additionalFile) {
+		const additionalFiles = globSync(`${PATCHES_DIR}/*/${patchId}-*.{rar,zip}`);
+		if (!additionalFiles.length) {
 			console.error(`${file} - is download stub, but additional file not found!`);
 			continue;
 		}
 
+		const additionalFile = additionalFiles[0];
 		const archive = await getFilesFromArchive(additionalFile);
 
-		const extractedPatches = [];
 		for (let entry of archive.lsarContents) {
 			if (entry.XADFileName.match(/\.vkp$/i)) {
-				patchText = (await extractFileFromArchive(additionalFile, entry.XADIndex)).toString('utf-8');
+				patchText = await vkpNormalizeWithRTF(await extractFileFromArchive(additionalFile, entry.XADIndex));
 				analyzePatch(patchUrl, additionalFile, entry.XADFileName, patchText);
 			}
 		}
 	} else {
-		analyzePatch(patchUrl, file, null, patchText);
+		analyzePatch(patchUrl, file, undefined, patchText);
 	}
 }
 
-function analyzePatch(patchUrl, file, subfile, patchText) {
+function analyzePatch(patchUrl: string, file: string, subfile: string | undefined, patchText: string): void {
 	const location = subfile ? `${file} -> ${subfile}` : file;
 
 	const vkp = vkpParse(patchText, {
-		allowEmptyOldData:	true,
-		allowPlaceholders:	true,
+		allowEmptyOldData: true,
+		allowPlaceholders: true,
 	});
 
 	if (vkp.warnings.length || vkp.errors.length) {
@@ -70,10 +77,10 @@ function analyzePatch(patchUrl, file, subfile, patchText) {
 	}
 }
 
-function readFiles(dir, base, files) {
+function readFiles(dir: string, base?: string, files?: string[]): string[] {
 	base = base || "";
 	files = files || [];
-	fs.readdirSync(dir, {withFileTypes: true}).forEach((entry) => {
+	fs.readdirSync(dir, { withFileTypes: true }).forEach((entry) => {
 		if (entry.isDirectory()) {
 			readFiles(dir + "/" + entry.name, base + entry.name + "/", files);
 		} else {
@@ -83,9 +90,9 @@ function readFiles(dir, base, files) {
 	return files;
 }
 
-async function getFilesFromArchive(file) {
+async function getFilesFromArchive(file: string): Promise<ArchiveContents> {
 	return new Promise((resolve, reject) => {
-		let proc = child_process.spawn("lsar", ["-j", file], { encoding: 'utf-8' });
+		const proc = child_process.spawn("lsar", ["-j", file]);
 		let json = "";
 		proc.stdout.on('data', (chunk) => json += chunk);
 		proc.on('error', (e) => reject(e));
@@ -97,16 +104,15 @@ async function getFilesFromArchive(file) {
 			} catch (e) {
 				reject(e);
 			}
-			proc = json = null;
 		});
 	});
 }
 
-function extractFileFromArchive(file, index) {
+function extractFileFromArchive(file: string, index: string | number): Promise<Buffer> {
 	return new Promise((resolve, reject) => {
-		let proc = child_process.spawn("unar", ["-i", "-o", "-", file, index]);
-		let buffer = [];
-		proc.stdout.on('data', (chunk) => buffer.push(chunk));
+		const proc = child_process.spawn("unar", ["-i", "-o", "-", file, index.toString()]);
+		let buffer: Buffer[] = [];
+		proc.stdout.on('data', (chunk: Buffer) => buffer.push(chunk));
 		proc.on('error', (e) => reject(e));
 		proc.on('close', (status) => {
 			try {
@@ -116,7 +122,6 @@ function extractFileFromArchive(file, index) {
 			} catch (e) {
 				reject(e);
 			}
-			proc = buffer = null;
 		});
 	});
 }
