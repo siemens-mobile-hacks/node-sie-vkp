@@ -7,20 +7,20 @@ import { vkpParse, vkpDetectContent } from '../src/index.js';
 import child_process from 'child_process';
 import { sprintf } from 'sprintf-js';
 
-let vkp = vkpParse(fs.readFileSync(`/tmp/s352004.crk`).toString(), {
+const vkp = vkpParse(fs.readFileSync(`/tmp/s352004.crk`).toString(), {
 	allowEmptyOldData:	true,
 	allowPlaceholders:	true,
 });
 
-let chunks = vkpMergeChunks(vkp);
+const chunks = vkpMergeChunks(vkp);
 for (let c of chunks) {
 	console.log(sprintf("%08X: %s %s", c.addr, c.old.toString('hex'), c.new.toString('hex')));
 }
 
 function vkpMergeChunks(vkp) {
-	let chunks = [];
-	let chunkIsSame = (w) => {
-		let prevChunk = chunks[chunks.length - 1];
+	const chunks = [];
+	const chunkIsSame = (w) => {
+		const prevChunk = chunks[chunks.length - 1];
 		if ((prevChunk.addr + prevChunk.size) - w.addr != 0)
 			return false;
 
@@ -46,7 +46,7 @@ function vkpMergeChunks(vkp) {
 						new: Buffer.from(w.new),
 			});
 		} else {
-			let prevChunk = chunks[chunks.length - 1];
+			const prevChunk = chunks[chunks.length - 1];
 			prevChunk.size += w.size;
 			if (prevChunk.old)
 				prevChunk.old = Buffer.concat([prevChunk.old, w.old]);

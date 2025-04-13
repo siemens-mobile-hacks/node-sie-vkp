@@ -1,28 +1,28 @@
 import { vkpParse } from './index.js';
 
 test('warn: useless pragma', () => {
-	let vkp = vkpParse(`#pragma enable warn_no_old_on_apply`);
+	const vkp = vkpParse(`#pragma enable warn_no_old_on_apply`);
 	expect(vkp.valid).toBe(true);
 	expect(vkp.warnings.length).toBe(1);
 	expect(vkp.warnings[0]).toHaveProperty("message", "Useless \"#pragma enable warn_no_old_on_apply\" has no effect at line 1 col 1\nYou can safely remove this line.");
 });
 
 test('warn: uncanceled pragma', () => {
-	let vkp = vkpParse(`#pragma disable warn_no_old_on_apply`);
+	const vkp = vkpParse(`#pragma disable warn_no_old_on_apply`);
 	expect(vkp.valid).toBe(true);
 	expect(vkp.warnings.length).toBe(1);
 	expect(vkp.warnings[0]).toHaveProperty("message", "Uncanceled pragma \"warn_no_old_on_apply\" at line 1 col 1\nPlease put \"#pragma enable warn_no_old_on_apply\" at the end of the patch.");
 });
 
 test('warn: uncanceled offset', () => {
-	let vkp = vkpParse(`+123`);
+	const vkp = vkpParse(`+123`);
 	expect(vkp.valid).toBe(true);
 	expect(vkp.warnings.length).toBe(1);
 	expect(vkp.warnings[0]).toHaveProperty("message", "Uncanceled offset +123 at line 1 col 1\nPlease put \"+0\" at the end of the patch.");
 });
 
 test('warn: bad comments', () => {
-	let vkp = vkpParse(`
+	const vkp = vkpParse(`
 		*/
 		/* comment...
 	`);
@@ -33,7 +33,7 @@ test('warn: bad comments', () => {
 });
 
 test('warn: no old data', () => {
-	let vkp = vkpParse(`
+	const vkp = vkpParse(`
 		AA: BB
 	`);
 	expect(vkp.valid).toBe(true);
@@ -42,7 +42,7 @@ test('warn: no old data', () => {
 });
 
 test('error: space after number', () => { // thanks Viktor89
-	let vkp = vkpParse(`
+	const vkp = vkpParse(`
 		AAAA: BB 0i123; comment
 		AAAA: BB 0x12; comment
 		AAAA: BB CC; comment
@@ -55,7 +55,7 @@ test('error: space after number', () => { // thanks Viktor89
 });
 
 test('error: placeholder', () => {
-	let vkp = vkpParse(`AAAA: BB XX`);
+	const vkp = vkpParse(`AAAA: BB XX`);
 	expect(vkp.valid).toBe(false);
 	expect(vkp.warnings.length).toBe(0);
 	expect(vkp.errors.length).toBe(1);
@@ -63,7 +63,7 @@ test('error: placeholder', () => {
 });
 
 test('error: invalid hex data', () => {
-	let vkp = vkpParse(`AAAA: BB B`);
+	const vkp = vkpParse(`AAAA: BB B`);
 	expect(vkp.valid).toBe(false);
 	expect(vkp.warnings.length).toBe(0);
 	expect(vkp.errors.length).toBe(1);
@@ -71,7 +71,7 @@ test('error: invalid hex data', () => {
 });
 
 test('error: old data is less than new data', () => {
-	let vkp = vkpParse(`AAAA: BB BBCC`);
+	const vkp = vkpParse(`AAAA: BB BBCC`);
 	expect(vkp.valid).toBe(false);
 	expect(vkp.warnings.length).toBe(0);
 	expect(vkp.errors.length).toBe(1);
@@ -79,7 +79,7 @@ test('error: old data is less than new data', () => {
 });
 
 test('error: comment tokens in string', () => {
-	let vkp = vkpParse(`
+	const vkp = vkpParse(`
 		AAAA: AABBCCDDEE "//"
 		AAAA: AABBCCDDEE "/*"
 		AAAA: AABBCCDDEE "\\/\\/"
@@ -93,7 +93,7 @@ test('error: comment tokens in string', () => {
 });
 
 test('error: number ranges', () => {
-	let vkp = vkpParse(`
+	const vkp = vkpParse(`
 		AAAA: AABBCCDDEE 0i0,0i999
 		AAAA: AABBCCDDEE 0i0,0i99999
 		AAAA: AABBCCDDEE 0i0,0i99999999
@@ -134,7 +134,7 @@ test('error: number ranges', () => {
 });
 
 test('error: bad numbers', () => {
-	let vkp = vkpParse(`
+	const vkp = vkpParse(`
 		AAAA: AABBCCDDEE 0i0,0n1234
 		AAAA: AABBCCDDEE 0i0,0n111111111111111111111111111111111
 	`);
@@ -146,7 +146,7 @@ test('error: bad numbers', () => {
 });
 
 test('error: bad decimal numbers', () => {
-	let vkp = vkpParse(`
+	const vkp = vkpParse(`
 		00000000: FF,FF,FF 0i+000,0i+00,0i+0
 		00000000: FFFF 0i+0000
 		00000000: FFFFFF 0i+0000000
@@ -171,7 +171,7 @@ test('error: bad decimal numbers', () => {
 });
 
 test('error: bad address & offset', () => {
-	let vkp = vkpParse(`
+	const vkp = vkpParse(`
 		+AAAAAAAAA
 		AAAAAAAAA: AA BB
 	`);
@@ -183,7 +183,7 @@ test('error: bad address & offset', () => {
 });
 
 test('error: bad string', () => {
-	let vkp = vkpParse(`
+	const vkp = vkpParse(`
 		AAAAAAAA: FFFFFFFFFFFFFFFF "\\xAA"
 		AAAAAAAA: FFFFFFFFFFFFFFFF "\\u1234"
 		AAAAAAAA: FFFFFFFFFFFFFFFF "\\777"
@@ -199,7 +199,7 @@ test('error: bad string', () => {
 });
 
 test('data: valid address & offset', () => {
-	let vkp = vkpParse(`
+	const vkp = vkpParse(`
 		-123450
 		A8123456: AA BB
 		+0
@@ -212,7 +212,7 @@ test('data: valid address & offset', () => {
 });
 
 test('data: HEX bytes', () => {
-	let vkp = vkpParse(`00000000: FFFFFFFFFFFFFFFF DEAD926E,DE,AD,92,6E`);
+	const vkp = vkpParse(`00000000: FFFFFFFFFFFFFFFF DEAD926E,DE,AD,92,6E`);
 	expect(vkp.valid).toBe(true);
 	expect(vkp.warnings.length).toBe(0);
 	expect(vkp.errors.length).toBe(0);
@@ -221,7 +221,7 @@ test('data: HEX bytes', () => {
 });
 
 test('data: HEX numbers', () => {
-	let vkp = vkpParse(`00000000: FFFFFFFFFFFFFFFFFFFFFFFF 0xDEAD926E,0xDEAD,0x92,0x6E,0x1,0x2,0x123`);
+	const vkp = vkpParse(`00000000: FFFFFFFFFFFFFFFFFFFFFFFF 0xDEAD926E,0xDEAD,0x92,0x6E,0x1,0x2,0x123`);
 	expect(vkp.valid).toBe(true);
 	expect(vkp.warnings.length).toBe(0);
 	expect(vkp.errors.length).toBe(0);
@@ -230,7 +230,7 @@ test('data: HEX numbers', () => {
 });
 
 test('data: binary numbers', () => {
-	let vkp = vkpParse(`00000000: FFFFFFFFFFFFFFFFFFFFFF 0n11011110101011011011111011101111,0n11011110,0n1101111010101101,0n100100011010001010110`);
+	const vkp = vkpParse(`00000000: FFFFFFFFFFFFFFFFFFFFFF 0n11011110101011011011111011101111,0n11011110,0n1101111010101101,0n100100011010001010110`);
 	expect(vkp.valid).toBe(true);
 	expect(vkp.warnings.length).toBe(0);
 	expect(vkp.errors.length).toBe(0);
@@ -239,7 +239,7 @@ test('data: binary numbers', () => {
 });
 
 test('data: unsigned decimal numbers', () => {
-	let vkp = vkpParse(`
+	const vkp = vkpParse(`
 		00000000: FF 0i18
 		00000000: FFFF 0i04660
 		00000000: FFFFFF 0i01193046
@@ -264,7 +264,7 @@ test('data: unsigned decimal numbers', () => {
 });
 
 test('data: positive decimal numbers', () => {
-	let vkp = vkpParse(`
+	const vkp = vkpParse(`
 		; middle value
 		00000000: FF 0i+18
 		00000000: FFFF 0i+04660
@@ -326,7 +326,7 @@ test('data: positive decimal numbers', () => {
 });
 
 test('data: negative decimal numbers', () => {
-	let vkp = vkpParse(`
+	const vkp = vkpParse(`
 		; middle value
 		00000000: FF 0i-18
 		00000000: FFFF 0i-04660
@@ -388,7 +388,7 @@ test('data: negative decimal numbers', () => {
 });
 
 test('data: string', () => {
-	let vkp = vkpParse(`
+	const vkp = vkpParse(`
 00000000: FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF "ололо\\
 \\0\\177\\100test\\x50\\x20\\a\\b\\t\\r\\n\\v\\f\\e\\\\\\/"
 00000000: FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF 'ололо\\

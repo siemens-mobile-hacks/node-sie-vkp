@@ -16,14 +16,14 @@ import fs from 'fs';
 import { vkpNormalize, vkpParse } from '@sie-js/vkp';
 
 // Convert from windows-1251 to UTF-8 + replace CRLF to LF
-let patchText = vkpNormalize(fs.readFileSync('../patches/patches/E71v45/10732-ElfPack-18_03_2024-v3_2_2.vkp'));
+const patchText = vkpNormalize(fs.readFileSync('../patches/patches/E71v45/10732-ElfPack-18_03_2024-v3_2_2.vkp'));
 
 // Parse patch
-let vkp = vkpParse(patchText);
+const vkp = vkpParse(patchText);
 console.dir(vkp, { depth: null });
 
 if (vkp.warnings.length || vkp.errors.length) {
-    for (let warn of vkp.warnings) {
+    for (const warn of vkp.warnings) {
         console.log(`Warning: ${warn.message}`);
         console.log("```");
         console.log(warn.codeFrame(patchText));
@@ -31,7 +31,7 @@ if (vkp.warnings.length || vkp.errors.length) {
         console.log("");
     }
 
-    for (let err of vkp.errors) {
+    for (const err of vkp.errors) {
         console.log(`Error: ${err.message}`);
         console.log("```");
         console.log(err.codeFrame(patchText));

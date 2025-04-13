@@ -18,7 +18,7 @@ function vkpParse(text, options) {
 		...options
 	};
 
-	let vkp = {
+	const vkp = {
 		ast: null,
 		valid: false,
 		writes: [],
@@ -26,8 +26,8 @@ function vkpParse(text, options) {
 		errors: [],
 	};
 
-	let pragmas = {...DEFAULT_PRAGMAS};
-	let pragma2loc = {};
+	const pragmas = {...DEFAULT_PRAGMAS};
+	const pragma2loc = {};
 	let offsetCorrector;
 
 	vkpRawParser(text, {
@@ -50,7 +50,7 @@ function vkpParse(text, options) {
 		},
 		onPatchData(data, loc) {
 			let oldData = data.old ? data.old.buffer : null;
-			let newData = data.new.buffer;
+			const newData = data.new.buffer;
 
 			if (data.new.placeholders > 0) {
 				if (!options.allowPlaceholders)
@@ -88,10 +88,10 @@ function vkpParse(text, options) {
 		}
 	});
 
-	let unsinishedPragmas = [];
-	for (let k in pragmas) {
+	const unsinishedPragmas = [];
+	for (const k in pragmas) {
 		if (pragmas[k] !== DEFAULT_PRAGMAS[k]) {
-			let cancel = pragmas[k] ? `#pragma disable ${k}` : `#pragma enable ${k}`;
+			const cancel = pragmas[k] ? `#pragma disable ${k}` : `#pragma enable ${k}`;
 			vkp.warnings.push(new VkpParseError(`Uncanceled pragma "${k}"`, pragma2loc[k], `Please put "${cancel}" at the end of the patch.`));
 		}
 	}
@@ -107,7 +107,7 @@ function vkpParse(text, options) {
 function vkpDetectContent(text) {
 	if (text.indexOf('{\\rtf1') >= 0)
 		return "RTF";
-	let trimmedText = text.replace(/\/\*.*?\*\//gs, '').replace(/(\/\/|;|#).*?$/mg, '');
+	const trimmedText = text.replace(/\/\*.*?\*\//gs, '').replace(/(\/\/|;|#).*?$/mg, '');
 	if (trimmedText.match(/^\s*(0x[a-f0-9]+|[a-f0-9]+)\s*:[^\\/]/mi))
 		return "PATCH";
 	if (text.match(/;!(к патчу прикреплён файл|There is a file attached to this patch), https?:\/\//i))
@@ -125,9 +125,9 @@ async function vkpNormalizeWithRTF(text) {
 	if (text.indexOf('{\\rtf1') >= 0) {
 		// Strip RTF images
 		while (true) {
-			let pictureIndex = text.indexOf('{\\pict');
+			const pictureIndex = text.indexOf('{\\pict');
 			if (pictureIndex >= 0) {
-				let pictureEndIndex = text.indexOf('}', pictureIndex);
+				const pictureEndIndex = text.indexOf('}', pictureIndex);
 				if (pictureIndex >= 0) {
 					text = Buffer.concat([ text.slice(0, pictureIndex), text.slice(pictureEndIndex + 1) ]);
 					continue;
@@ -137,7 +137,7 @@ async function vkpNormalizeWithRTF(text) {
 		}
 
 		text = text.toString('utf-8').replace(/{\\pict.*?\}/gsi, ''); // remove pictures
-		let parsed = await new Promise((resolve, reject) => {
+		const parsed = await new Promise((resolve, reject) => {
 			RTFParser.string(text, (err, doc) => {
 				if (err) {
 					reject(err);
@@ -147,8 +147,8 @@ async function vkpNormalizeWithRTF(text) {
 			});
 		});
 
-		let lines = [];
-		for (let p of parsed.content) {
+		const lines = [];
+		for (const p of parsed.content) {
 			lines.push(p.content.map((s) => s.value).join(''));
 		}
 		return lines.join('\n');

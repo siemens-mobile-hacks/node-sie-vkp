@@ -13,21 +13,21 @@ for (let file of readFiles(PATCHES_DIR)) {
 		continue;
 
 	let patchText = iconv.decode(fs.readFileSync(`${PATCHES_DIR}/${file}`), 'windows1251').replace(/(\r\n|\n)/g, '\n');
-	let patchUrl = patchText.match(/Details: (https?:\/\/.*?)$/m)[1];
+	const patchUrl = patchText.match(/Details: (https?:\/\/.*?)$/m)[1];
 
-	let detectedType = vkpDetectContent(patchText);
+	const detectedType = vkpDetectContent(patchText);
 	if (detectedType == "DOWNLOAD_STUB") {
-		let patchId = path.basename(file).split('-')[0];
+		const patchId = path.basename(file).split('-')[0];
 
-		let [additionalFile] = globSync(`${PATCHES_DIR}/*/${patchId}-*.{rar,zip}`);
+		const [additionalFile] = globSync(`${PATCHES_DIR}/*/${patchId}-*.{rar,zip}`);
 		if (!additionalFile) {
 			console.error(`${file} - is download stub, but additional file not found!`);
 			continue;
 		}
 
-		let archive = await getFilesFromArchive(additionalFile);
+		const archive = await getFilesFromArchive(additionalFile);
 
-		let extractedPatches = [];
+		const extractedPatches = [];
 		for (let entry of archive.lsarContents) {
 			if (entry.XADFileName.match(/\.vkp$/i)) {
 				patchText = (await extractFileFromArchive(additionalFile, entry.XADIndex)).toString('utf-8');
@@ -40,9 +40,9 @@ for (let file of readFiles(PATCHES_DIR)) {
 }
 
 function analyzePatch(patchUrl, file, subfile, patchText) {
-	let location = subfile ? `${file} -> ${subfile}` : file;
+	const location = subfile ? `${file} -> ${subfile}` : file;
 
-	let vkp = vkpParse(patchText, {
+	const vkp = vkpParse(patchText, {
 		allowEmptyOldData:	true,
 		allowPlaceholders:	true,
 	});

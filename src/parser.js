@@ -77,18 +77,18 @@ function vkpRawParser(text, options = {}) {
 	while ((token = peekToken())) {
 		try {
 			if (token.type == TOKEN.ADDRESS) {
-				let loc = getLocation();
+				const loc = getLocation();
 				state.onPatchData(parsePatchRecord(), loc);
 			} else if (token.type == TOKEN.PRAGMA) {
-				let loc = getLocation();
+				const loc = getLocation();
 				state.onPragma(parsePatchPragma(), loc);
 			} else if (token.type == TOKEN.OFFSET) {
-				let loc = getLocation();
+				const loc = getLocation();
 				state.onOffset(parsePatchOffsetCorrector(), loc);
 			} else if (token.type == TOKEN.NEWLINE || token.type == TOKEN.WHITESPACE) {
 				nextToken();
 			} else if (token.type == TOKEN.COMMENT || token.type == TOKEN.MULTILINE_COMMENT || token.type == TOKEN.UNFINISHED_COMMENT) {
-				let loc = getLocation();
+				const loc = getLocation();
 				state.onComments(parseComments(), loc);
 			} else if (token.type == TOKEN.TRAILING_COMMENT_END) {
 				state.onWarning(new VkpParseError(`Trailing multiline comment end`, getLocation()));
@@ -100,7 +100,7 @@ function vkpRawParser(text, options = {}) {
 			if (!(e instanceof VkpParseError))
 				throw e;
 
-			let loc = getLocation();
+			const loc = getLocation();
 			let token;
 			while ((token = nextToken())) {
 				if (token.type == TOKEN.NEWLINE)
@@ -114,7 +114,7 @@ function vkpRawParser(text, options = {}) {
 }
 
 function parseComments() {
-	let comments = [];
+	const comments = [];
 	let token;
 	while ((token = peekToken())) {
 		if (token.type == TOKEN.NEWLINE) {
@@ -135,36 +135,36 @@ function parseComments() {
 }
 
 function parsePatchPragma() {
-	let pragma = parsePragmaValue(peekToken().value);
+	const pragma = parsePragmaValue(peekToken().value);
 	nextToken();
-	let comment = parseCommentsAfterExpr();
+	const comment = parseCommentsAfterExpr();
 	return { pragma, comment };
 }
 
 function parsePatchOffsetCorrector() {
-	let text = peekToken().value;
-	let offset = parseOffsetValue(text);
+	const text = peekToken().value;
+	const offset = parseOffsetValue(text);
 	nextToken();
-	let comment = parseCommentsAfterExpr();
+	const comment = parseCommentsAfterExpr();
 	return { text, offset, comment };
 }
 
 function parsePatchRecord() {
-	let address = parsePatchRecordAddress();
+	const address = parsePatchRecordAddress();
 
-	let data = [];
+	const data = [];
 	for (let i = 0; i < 2; i++) {
 		if (!parsePatchRecordSeparator())
 			break;
-		let loc = getLocation();
-		let [buffer, placeholders] = parsePatchData();
+		const loc = getLocation();
+		const [buffer, placeholders] = parsePatchData();
 		data.push({ loc, buffer: mergeBuffers(buffer), placeholders });
 	}
 
 	if (!data.length)
 		throw new VkpParseError(`Empty patch data record!`, getLocation());
 
-	let comment = parseCommentsAfterExpr();
+	const comment = parseCommentsAfterExpr();
 	return {
 		address,
 		comment,
@@ -178,13 +178,13 @@ function mergeBuffers(buffers) {
 }
 
 function parsePatchRecordAddress() {
-	let value = parseAddressValue(peekToken().value);
+	const value = parseAddressValue(peekToken().value);
 	nextToken();
 	return value;
 }
 
 function parsePatchData() {
-	let data = [];
+	const data = [];
 	let token;
 	let placeholders = 0;
 	while ((token = peekToken())) {
@@ -237,7 +237,7 @@ function parsePatchRecordSeparator() {
 }
 
 function parseCommentsAfterExpr() {
-	let comments = [];
+	const comments = [];
 	let token;
 	while ((token = peekToken())) {
 		if (token.type == TOKEN.NEWLINE) {
@@ -259,7 +259,7 @@ function parseCommentsAfterExpr() {
 
 function nextToken() {
 	state.prevToken = state.token;
-	let token = state.token ? state.token : LEXER.next();
+	const token = state.token ? state.token : LEXER.next();
 	state.token = LEXER.next();
 	return token;
 }
@@ -292,13 +292,13 @@ function parseCommentValue(v) {
 
 function parseAnyNumberValue(v) {
 	let m;
-	let tmpBuffer = Buffer.allocUnsafe(8);
+	const tmpBuffer = Buffer.allocUnsafe(8);
 
 	if ((m = v.match(/^0i([+-]\d+)$/i))) { // dec signed
-		let num = m[1];
-		for (let d of SINT_PARSER_DATA) {
+		const num = m[1];
+		for (const d of SINT_PARSER_DATA) {
 			if ((num.length - 1) <= d[0]) {
-				let parsedNum = BigInt(num);
+				const parsedNum = BigInt(num);
 				if (parsedNum < -d[1] || parsedNum > d[1])
 					throw new VkpParseError(`Number ${v} exceeds allowed range -${d[1].toString(10)} ... +${d[1].toString(10)}`, getLocation());
 				if ((num.length - 1) < d[0] && d[0] > 3) {
@@ -311,10 +311,10 @@ function parseAnyNumberValue(v) {
 			}
 		}
 	} else if ((m = v.match(/^0i(\d+)$/i))) { // dec unsigned
-		let num = m[1];
-		for (let d of UINT_PARSER_DATA) {
+		const num = m[1];
+		for (const d of UINT_PARSER_DATA) {
 			if (num.length <= d[0]) {
-				let parsedNum = d[2] <= 32 ? parseInt(num, 10) : BigInt(num);
+				const parsedNum = d[2] <= 32 ? parseInt(num, 10) : BigInt(num);
 				if (parsedNum < 0 || parsedNum > d[1])
 					throw new VkpParseError(`Number ${v} exceeds allowed range 0 ... ${d[1].toString(10)}`, getLocation());
 				if (num.length < d[0] && d[0] > 3) {
@@ -367,12 +367,12 @@ function parseStringValue(value) {
 			`Escape these ambiguous characters like this: \\/* or \\/\\/.`);
 	}
 
-	let text = value.slice(1, -1);
+	const text = value.slice(1, -1);
 
-	let offset = 0;
-	let parts = [];
+	const offset = 0;
+	const parts = [];
 	let tmp = "";
-	let unicode = (value.charAt(0) == "'");
+	const unicode = (value.charAt(0) == "'");
 	let escape = false;
 
 /*
@@ -382,21 +382,21 @@ function parseStringValue(value) {
 	}
 */
 
-	let breakpoint = () => {
+	const breakpoint = () => {
 		if (tmp.length) {
 			parts.push(tmp);
 			tmp = "";
 		}
 	};
 
-	let getStrLocation = (i) => {
-		let loc = getLocation();
+	const getStrLocation = (i) => {
+		const loc = getLocation();
 		loc.column += i;
 		return loc;
 	};
 
 	for (let i = 0; i < text.length; i++) {
-		let c = text.charAt(i);
+		const c = text.charAt(i);
 		if (escape) {
 			if (c == "\r") {
 				if (text.charAt(i + 1) == "\n")
@@ -404,10 +404,10 @@ function parseStringValue(value) {
 			} else if (c == "\n") {
 				// Ignore
 			} else if (c == "x") {
-				let hex = text.substr(i + 1, 2);
+				const hex = text.substr(i + 1, 2);
 				if (hex.length == 2) {
 					breakpoint();
-					let hexnum = parseInt(`0x${hex}`);
+					const hexnum = parseInt(`0x${hex}`);
 					if (unicode) {
 						parts.push(Buffer.from([ hexnum, 0x00 ]));
 					} else {
@@ -420,10 +420,10 @@ function parseStringValue(value) {
 					throw new VkpParseError(`Unknown escape sequence (\\x${hex})`, getStrLocation(i));
 				}
 			} else if (c == "u") {
-				let hex = text.substr(i + 1, 4);
+				const hex = text.substr(i + 1, 4);
 				if (hex.length == 4) {
 					breakpoint();
-					let hexnum = parseInt(`0x${hex}`);
+					const hexnum = parseInt(`0x${hex}`);
 					if (unicode) {
 						parts.push(Buffer.from([ hexnum & 0xFF, (hexnum >> 8) & 0xFF ]));
 					} else {
@@ -441,7 +441,7 @@ function parseStringValue(value) {
 					ocatlLen++;
 				}
 
-				let oct = parseInt(text.substr(i, ocatlLen), 8);
+				const oct = parseInt(text.substr(i, ocatlLen), 8);
 				if (oct > 0xFF)
 					throw new VkpParseError(`Unknown escape sequence (\\${text.substr(i, ocatlLen)})`, getStrLocation(i));
 
